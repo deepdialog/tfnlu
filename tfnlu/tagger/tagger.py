@@ -1,5 +1,11 @@
+import math
+import logging
+
+import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
+from tqdm import tqdm
+from sklearn.utils import shuffle as skshuffle
 
 from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
 from tfnlu.utils.temp_dir import TempDir
@@ -19,14 +25,23 @@ def train_step(model, optimizer, x, y):
     return loss
 
 
+def batch_generator(x, y, batch_size):
+    n_batch = math.ceil(len(x) / batch_size)
+    for i in range(n_batch):
+        yield x[i * batch_size:(i + 1) *
+                batch_size], y[i * batch_size:(i + 1) * batch_size]
+
+
 class Tagger(object):
     def __init__(self, encoder_path, optimizer='adamw'):
         self.encoder_path = encoder_path
         self.optimizer = optimizer
         self.predict_model = None
         self.model_bin = None
+        self.word_index = None
+        self.index_word = None
 
-    def fit(self, x, y):
+    def fit(self, x, y, epochs=1, batch_size=32, shuffle=True):
         assert self.predict_model is None, 'You cannot train this model again'
         assert hasattr(x, '__len__'), 'X should be a list/np.array'
         assert len(x) > 0, 'len(X) should more than 0'
@@ -36,36 +51,54 @@ class Tagger(object):
         # Convert x from [str0, str1] to [[str0], [str1]]
         x = [[xx] for xx in x]
         word_index, index_word = get_tags(y)
-        print(f'tags count: {len(word_index)}')
-        print('build model')
+        self.word_index = word_index
+        self.index_word = index_word
+        logging.info(f'tags count: {len(word_index)}')
+        logging.info('build model')
         train_model, predict_model = build_model(
             encoder_path=self.encoder_path,
             tag_size=len(word_index),
             index_word=index_word)
         tto = ToTokens(word_index)
-        print('build optimizers')
+        logging.info('build optimizers')
         if self.optimizer == 'adamw':
             optimizer = tfa.optimizers.AdamW(1e-2)
         else:
             optimizer = tf.keras.optimizers.Adam()
-        print('start training')
+        logging.info('start training')
 
-        for i in range(3):
-            loss = train_step(train_model, optimizer, tf.constant(x),
-                              tto(tf.ragged.constant(y).to_tensor()))
-            loss = loss.numpy()
-            print(f'{i} loss: {loss:.4f}')
-        print('training done')
+        for i in range(epochs):
+            if shuffle:
+                x, y = skshuffle(x, y)
+            losses = []
+            pbar = tqdm(batch_generator(x, y, batch_size=batch_size),
+                        total=math.ceil(len(x) / batch_size))
+            pbar.set_description(f'epoch: {i} loss: {0.:.4f}')
+            for batch_x, batch_y in pbar:
+                loss = train_step(train_model, optimizer, tf.constant(batch_x),
+                                  tto(tf.ragged.constant(batch_y).to_tensor()))
+                loss = loss.numpy()
+                losses.append(loss)
+                pbar.set_description(f'epoch: {i} loss: {np.mean(losses):.4f}')
+        logging.info('training done')
         self.predict_model = predict_model
 
-    def predict(self, x):
+    def predict(self, x, batch_size=32):
         assert self.predict_model is not None, 'model not fit or load'
         assert hasattr(x, '__len__'), 'X should be a list/np.array'
         assert len(x) > 0, 'len(X) should more than 0'
         assert isinstance(x[0], str), 'Elements of X should be string'
         x = [[xx] for xx in x]
-        y = self.predict_model(tf.constant(x))
-        return y
+        n_batch = math.ceil(len(x) / batch_size)
+        ret = []
+        for i in range(n_batch):
+            y = self.predict_model(
+                tf.constant(x[i * batch_size:(i + 1) * batch_size]))
+            y = y.numpy().tolist()
+            y = [[self.index_word[yyy] for yyy in yy[:len(xx[0])]]
+                 for xx, yy in zip(x, y)]
+            ret += y
+        return ret
 
     def __getstate__(self):
         """pickle serialize."""
@@ -74,7 +107,11 @@ class Tagger(object):
             with TempDir() as td:
                 self.predict_model.save(td, include_optimizer=False)
                 self.model_bin = serialize_dir(td)
-        return {'model_bin': self.model_bin}
+        return {
+            'model_bin': self.model_bin,
+            'index_word': self.index_word,
+            'word_index': self.word_index
+        }
 
     def __setstate__(self, state):
         """pikle deserialize."""
@@ -83,3 +120,5 @@ class Tagger(object):
             deserialize_dir(td, state.get('model_bin'))
             self.model_bin = state.get('model_bin')
             self.predict_model = tf.keras.models.load_model(td)
+        self.word_index = state.get('word_index')
+        self.index_word = state.get('index_word')
