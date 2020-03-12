@@ -1,3 +1,6 @@
 *.py[cod]
 *.log
 .ipynb_checkpoints
+/encoders
+*.pkl
+*.ipynb
