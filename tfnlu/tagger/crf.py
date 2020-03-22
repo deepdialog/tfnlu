@@ -24,14 +24,13 @@ class CRF(tf.keras.layers.Layer):
         returns: [B, L]
         """
         # inputs = inputs[:, 1:-1, :]
+        shape = tf.shape(inputs)
         if lengths is None:
-            shape = tf.shape(inputs)
             lengths = tf.ones((shape[0], ), dtype=tf.int32) * shape[1]
-        tags_id, _ = crf_decode(
-            potentials=inputs,
-            transition_params=self.transition_params,
-            sequence_length=lengths)
-        return tags_id, tf.identity(self.transition_params)
+        tags_id, _ = crf_decode(potentials=inputs,
+                                transition_params=self.transition_params,
+                                sequence_length=lengths)
+        return tags_id
 
     def get_config(self):
         return {
@@ -40,7 +39,7 @@ class CRF(tf.keras.layers.Layer):
 
 
 @tf.function(experimental_relax_shapes=True)
-def crf_loss(inputs, tag_indices, transition_params):
+def crf_loss(inputs, tag_indices, transition_params, lengths):
     """
     parameters:
         inputs [B, L, N]
@@ -48,10 +47,6 @@ def crf_loss(inputs, tag_indices, transition_params):
         tags [B, L, N]
     returns: loss
     """
-    # +2 because encoder include [CLS]/<sos> and [SEP]/<eos>
-    lengths = tf.reshape(
-        tf.math.count_nonzero(tag_indices, axis=-1), (-1, ))
-    # lengths = tf.add(lengths, tf.constant(2, dtype=tf.int64))
     sequence_log_likelihood, _ = crf_log_likelihood(
         inputs=inputs,
         tag_indices=tag_indices,

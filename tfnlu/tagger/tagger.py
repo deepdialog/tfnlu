@@ -1,176 +1,164 @@
 import math
-import logging
 
-import numpy as np
 import tensorflow as tf
 import tensorflow_addons as tfa
-from tqdm import tqdm
-from sklearn.utils import shuffle as skshuffle
 
+from tfnlu.utils.logger import logger
 from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
 from tfnlu.utils.temp_dir import TempDir
 from .get_tags import get_tags
-from .build_model import build_model
-from .to_tokens import ToTokens
-from .crf import crf_loss
+from .tagger_model import TaggerModel
 from .score_table import score_table
+from .check_validation import CheckValidation
 
-
-@tf.function(experimental_relax_shapes=True)
-def train_step(model, optimizer, x, y):
-    with tf.GradientTape() as tape:
-        _, logits, transition_params = model(x, training=True)
-        loss = crf_loss(inputs=logits,
-                        tag_indices=y,
-                        transition_params=transition_params)
-    gradients = tape.gradient(loss, model.trainable_variables)
-    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss
-
-
-def batch_generator(x, y, batch_size):
-    n_batch = math.ceil(len(x) / batch_size)
-    for i in range(n_batch):
-        yield x[i * batch_size:(i + 1) *
-                batch_size], y[i * batch_size:(i + 1) * batch_size]
+MAX_LENGTH = 510
+DEFAULT_BATCH_SIZE = 32
 
 
 class Tagger(object):
     def __init__(self,
                  encoder_path,
-                 optimizer='adam',
-                 learning_rate=None,
-                 encoder_trainable=True):
+                 optimizer='RectifiedAdam',
+                 optimizer_arguments={},
+                 encoder_trainable=False):
         self.encoder_path = encoder_path
-        self.optimizer = optimizer
-        self.learning_rate = learning_rate
         self.encoder_trainable = encoder_trainable
+        self.optimizer = optimizer
+        self.optimizer_arguments = optimizer_arguments
 
         self.model = None
-        self.model_bin = None
         self.word_index = None
         self.index_word = None
 
         self.tto = None
         self.model_optimizer = None
 
-    def evaluate_table(self, x, y):
-        preds = self.predict(x)
+    def evaluate_table(self, x, y, batch_size=DEFAULT_BATCH_SIZE):
+        preds = self.predict(x, batch_size=batch_size)
         return score_table(preds, y)
+
+    def check_data(self, x, y, batch_size):
+        assert hasattr(x, '__len__'), 'X should be a array like'
+        assert len(x) > 0, 'len(X) should more than 0'
+        assert isinstance(x[0], str), 'Elements of X should be string'
+        if y:
+            assert len(x) == len(y), 'len(X) must equal to len(y)'
+            assert isinstance(y[0], str), 'Elements of y should be string'
+            assert len(x[0]) == len(
+                y[0].split()
+            ), 'Lengths of each elements in X should as same as Y'
+        for xx in x:
+            if len(xx) > MAX_LENGTH:
+                logger.warn(
+                    f'Some sample(s) longer than {MAX_LENGTH}, will be cut')
+                break
+        data = {
+            'length': len(x),
+            'has_y': y is not None,
+            'steps': math.ceil(len(x) / batch_size)
+        }
+        data['x'] = tf.constant([
+            [xx[:MAX_LENGTH]]
+            for xx in x
+        ])
+        if y:
+            data['y'] = tf.constant([
+                [
+                    ' '.join(xx.split()[:MAX_LENGTH])
+                ]
+                for xx in y
+            ])
+        return data
 
     def fit(self,
             x,
             y,
             epochs=1,
-            batch_size=32,
+            batch_size=DEFAULT_BATCH_SIZE,
             shuffle=True,
-            validation_data=None):
-        assert hasattr(x, '__len__'), 'X should be a list/np.array'
-        assert len(x) > 0, 'len(X) should more than 0'
-        assert isinstance(x[0], str), 'Elements of X should be string'
-        assert len(x[0]) == len(
-            y[0]), 'Lengths of each elements in X should as same as Y'
-        # Convert x from [str0, str1] to [[str0], [str1]]
-        x = [[xx] for xx in x]
+            validation_data=None,
+            save_best=None):
+        data = self.check_data(x, y, batch_size)
         if not self.model:
-            logging.info('build model')
+            logger.info('build model')
             word_index, index_word = get_tags(y)
-            self.word_index = word_index
-            self.index_word = index_word
-            logging.info(f'tags count: {len(word_index)}')
-            logging.info('build model')
-            self.model = build_model(
+            logger.info(f'tags count: {len(word_index)}')
+            logger.info('build model')
+            self.model = TaggerModel(
                 encoder_path=self.encoder_path,
-                tag_size=len(word_index),
+                word_index=word_index,
                 index_word=index_word,
                 encoder_trainable=self.encoder_trainable)
-
-            logging.info('build optimizer')
-            if self.optimizer == 'adamw':
-                self.model_optimizer = tfa.optimizers.AdamW(1e-2)
+        if not self.model._is_compiled:
+            logger.info('build optimizer')
+            if self.optimizer.lower() == 'adamw':
+                model_optimizer = tf.keras.optimizers.AdamW(
+                    **self.optimizer_arguments
+                )
+            elif self.optimizer.lower() == 'rectifiedadam':
+                model_optimizer = tfa.optimizers.RectifiedAdam(
+                    **self.optimizer_arguments
+                )
             else:
-                if self.learning_rate is not None:
-                    self.model_optimizer = tf.keras.optimizers.Adam(
-                        lr=self.learning_rate)
-                else:
-                    self.model_optimizer = tf.keras.optimizers.Adam()
+                model_optimizer = tf.keras.optimizers.Adam(
+                    **self.optimizer_arguments
+                )
 
-        tto = ToTokens(self.word_index)
+            self.model.compile(optimizer=model_optimizer)
+        logger.info('check model predict')
+        self.model.predict(tf.constant([
+            [xx[:MAX_LENGTH]]
+            for xx in x[:1]
+        ]), verbose=0)
+        logger.info('start training')
 
-        logging.info('start training')
+        self.model.fit(
+            data.get('x'),
+            data.get('y'),
+            epochs=epochs,
+            callbacks=[
+                CheckValidation(
+                    self,
+                    validation_data,
+                    save_best)
+            ],
+            batch_size=batch_size
+        )
 
-        for i in range(epochs):
-            if shuffle:
-                x, y = skshuffle(x, y)
-            losses = []
-            xdata = tf.data.Dataset.from_generator(
-                lambda: iter(x),
-                output_types=tf.string,
-            )
-            xdata = xdata.batch(batch_size)
-            ydata = tf.data.Dataset.from_generator(lambda: iter(y),
-                                                   output_types=tf.string)
-            ydata = ydata.map(tto)
-            ydata = ydata.map(lambda x: tf.concat(
-                [tf.constant([1]), x, tf.constant([2])], axis=0))
-            ydata = ydata.padded_batch(batch_size, padded_shapes=[None])
-            data = tf.data.Dataset.zip((xdata, ydata)).prefetch(32)
+        logger.info('training done')
 
-            pbar = tqdm(data,
-                        total=math.ceil(len(x) / batch_size))
-            pbar.set_description(f'epoch: {i} loss: {0.:.4f}')
-            for batch_x, batch_y in pbar:
-                loss = train_step(self.model, self.model_optimizer,
-                                  batch_x, batch_y)
-                loss = loss.numpy()
-                losses.append(loss)
-                pbar.set_description(f'epoch: {i} loss: {np.mean(losses):.4f}')
-            if validation_data is not None:
-                print(
-                    self.evaluate_table(validation_data[0],
-                                        validation_data[1]))
-        logging.info('training done')
-
-    def predict(self, x, batch_size=32):
+    def predict(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1):
         assert self.model is not None, 'model not fit or load'
-        assert hasattr(x, '__len__'), 'X should be a list/np.array'
-        assert len(x) > 0, 'len(X) should more than 0'
-        assert isinstance(x[0], str), 'Elements of X should be string'
-        lengths = [len(xx) for xx in x]
-        x = [[xx] for xx in x]
-        x = tf.constant(x)
-        n_batch = math.ceil(len(x) / batch_size)
-        ret = []
-        pbar = tqdm(range(n_batch), total=n_batch)
-        pbar.set_description('predict')
-        for i in pbar:
-            y, _, _ = self.model(x[i * batch_size:(i + 1) * batch_size])
-            y = y.numpy().tolist()
-            batch_lengths = lengths[i * batch_size:(i + 1) * batch_size]
-            y = [[self.index_word[yyy] for yyy in yy[1:1 + l]]
-                 for l, yy in zip(batch_lengths, y)]
-            ret += y
-        return ret
+        data = self.check_data(x, None, batch_size)
+        pred = self.model.predict(
+            data.get('x'),
+            verbose=verbose,
+            batch_size=batch_size
+        )
+        pred = [x.decode('UTF-8') for x in pred.tolist()]
+        return pred
 
     def __getstate__(self):
         """pickle serialize."""
         assert self.model is not None, 'model not fit or load'
-        if self.model_bin is None:
-            with TempDir() as td:
-                self.model.save(td, include_optimizer=False)
-                self.model_bin = serialize_dir(td)
+        with TempDir() as td:
+            self.model.save(td, include_optimizer=False)
+            model_bin = serialize_dir(td)
         return {
-            'model_bin': self.model_bin,
+            'model_bin': model_bin,
             'index_word': self.index_word,
-            'word_index': self.word_index
+            'word_index': self.word_index,
+            'optimizer': self.optimizer,
+            'optimizer_arguments': self.optimizer_arguments
         }
 
     def __setstate__(self, state):
-        """pikle deserialize."""
+        """pickle deserialize."""
         assert 'model_bin' in state, 'invalid model state'
         with TempDir() as td:
             deserialize_dir(td, state.get('model_bin'))
-            self.model_bin = state.get('model_bin')
             self.model = tf.keras.models.load_model(td)
         self.word_index = state.get('word_index')
         self.index_word = state.get('index_word')
+        self.optimizer = state.get('optimizer')
+        self.optimizer_arguments = state.get('optimizer_arguments')
