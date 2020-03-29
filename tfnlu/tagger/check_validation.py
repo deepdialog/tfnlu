@@ -25,7 +25,8 @@ class CheckValidation(tf.keras.callbacks.Callback):
         validation_result = self.tagger.evaluate_table(
             x=self.validation_data[0],
             y=self.validation_data[1],
-            batch_size=self.batch_size)
+            batch_size=self.batch_size
+        )
         f1 = validation_result.iloc[-1]['f1score']
         print(validation_result)
 

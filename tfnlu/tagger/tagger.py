@@ -37,7 +37,9 @@ class Tagger(object):
         preds = self.predict(x, batch_size=batch_size)
         return score_table(preds, y)
 
-    def check_data(self, x, y, batch_size):
+    def check_data(self, x, y, batch_size=DEFAULT_BATCH_SIZE):
+        if not isinstance(batch_size, int):
+            batch_size = DEFAULT_BATCH_SIZE
         assert hasattr(x, '__len__'), 'X should be a array like'
         assert len(x) > 0, 'len(X) should more than 0'
         assert isinstance(x[0], str), 'Elements of X should be string'
@@ -118,9 +120,10 @@ class Tagger(object):
             epochs=epochs,
             callbacks=[
                 CheckValidation(
-                    self,
-                    validation_data,
-                    save_best)
+                    tagger=self,
+                    batch_size=batch_size,
+                    validation_data=validation_data,
+                    save_best=save_best)
             ],
             batch_size=batch_size
         )
