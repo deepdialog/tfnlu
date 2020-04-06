@@ -4,3 +4,5 @@
 /encoders
 *.pkl
 *.ipynb
+/*.html
+/*.txt

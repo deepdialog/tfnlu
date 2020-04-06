@@ -2,8 +2,8 @@ import tensorflow as tf
 import tensorflow_hub as hub
 
 from .crf import CRF, crf_loss
-from .to_tokens import ToTokens
 from .to_tags import ToTags
+from .to_tokens import ToTokens
 
 
 @tf.function(experimental_relax_shapes=True)
@@ -27,7 +27,7 @@ class TaggerModel(tf.keras.Model):
                  encoder_trainable=False,
                  hidden_size=768,
                  dropout=.25,
-                 n_layers=2,
+                 n_layers=1,
                  **kwargs):
         super(TaggerModel, self).__init__(**kwargs)
         self.to_token = ToTokens(word_index)

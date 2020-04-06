@@ -1,7 +1,7 @@
 from collections import Counter
 
 
-def get_tags(y):
+def pos_get_tags(y):
     tokens = Counter()
     for sent in y:
         tokens.update(sent.split())

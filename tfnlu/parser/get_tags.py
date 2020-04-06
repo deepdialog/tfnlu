@@ -1,11 +1,13 @@
 from collections import Counter
+from tqdm import tqdm
 
 
 def get_tags(y):
     tokens = Counter()
-    for sent in y:
-        tokens.update(sent.split())
-    word_index = {'': 0, '[CLS]': 1, '[SEP]': 2}
+    for mat in tqdm(y):
+        for line in mat:
+            tokens.update(line)
+    word_index = {'': 0}
     for k in tokens.keys():
         if k not in word_index:
             word_index[k] = len(word_index)

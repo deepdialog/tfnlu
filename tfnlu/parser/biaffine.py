@@ -2,16 +2,25 @@ import tensorflow as tf
 
 
 class Biaffine(tf.keras.layers.Layer):
-    def __init__(self, dim0, dim1, odim=1, **kwargs):
+    def __init__(self,
+                 in_dim0, in_dim1,
+                 out_dim=1,
+                 bias0=True, bias1=True, **kwargs):
         super(Biaffine, self).__init__(**kwargs)
-        self.dim0 = dim0
-        self.dim1 = dim1
-        self.odim = odim
+        self.in_dim0 = in_dim0
+        self.in_dim1 = in_dim1
+        self.out_dim = out_dim
+        self.bias0 = bias0
+        self.bias1 = bias1
 
     def build(self, input_shape):
         self.w = self.add_weight(
             initializer=tf.keras.initializers.glorot_uniform(),
-            shape=(self.odim, self.dim0, self.dim1),
+            shape=(
+                self.out_dim,
+                self.in_dim0 + (1 if self.bias0 else 0),
+                self.in_dim1 + (1 if self.bias1 else 0)
+            ),
             dtype=tf.dtypes.float32,
             name='biaffine_matrix')
         super(Biaffine, self).build(input_shape)
@@ -20,9 +29,9 @@ class Biaffine(tf.keras.layers.Layer):
         """
         B: batch size
         L: sentence lengths
-        D0: dim0 in constructor
-        D1: dim1 in constructor
-        OD: odim in constructor
+        D0: in_dim0 in constructor
+        D1: in_dim1 in constructor
+        OD: out_dim in constructor
         input:
         x0: [B, L, D0]
         x1: [B, L, D1]
@@ -36,8 +45,18 @@ class Biaffine(tf.keras.layers.Layer):
         assert len(x1.shape) == 3
         assert x0.shape[0] == x1.shape[0]
         assert x0.shape[1] == x1.shape[1]
-        assert x0.shape[2] == self.dim0
-        assert x1.shape[2] == self.dim1
+        assert x0.shape[2] == self.in_dim0
+        assert x1.shape[2] == self.in_dim1
+        if self.bias0:
+            x0 = tf.concat([
+                x0,
+                tf.ones_like(x0[:, :, :1])
+            ], axis=-1)
+        if self.bias1:
+            x1 = tf.concat([
+                x1,
+                tf.ones_like(x0[:, :, :1])
+            ], axis=-1)
         # x0: [B, 1, L, D0]
         x0 = tf.expand_dims(x0, 1)
         # x1: [B, 1, L, D1]

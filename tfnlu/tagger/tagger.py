@@ -127,7 +127,6 @@ class Tagger(object):
             ],
             batch_size=batch_size
         )
-
         logger.info('training done')
 
     def predict(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1):
