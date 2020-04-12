@@ -107,13 +107,14 @@ class Tagger(object):
                 )
 
             self.model.compile(optimizer=model_optimizer)
+
         logger.info('check model predict')
         self.model.predict(tf.constant([
             [xx[:MAX_LENGTH]]
             for xx in x[:1]
         ]), verbose=0)
-        logger.info('start training')
 
+        logger.info('start training')
         self.model.fit(
             data.get('x'),
             data.get('y'),

@@ -53,29 +53,18 @@ class Parser(object):
 
         logger.info('parser.fit start training')
 
-        xiter = tf.data.Dataset.from_generator(
-            lambda: iter(x), output_types=tf.string
-        ).batch(
-            batch_size
-        )
-        y0iter = tf.data.Dataset.from_generator(
-            lambda: iter(y0), output_types=tf.string
-        ).map(
-            lambda x: tf.RaggedTensor.from_tensor(x)
-        ).batch(
-            batch_size
-        ).map(
-            lambda x: x.to_tensor()
-        )
-        y1iter = tf.data.Dataset.from_generator(
-            lambda: iter(y1), output_types=tf.string
-        ).batch(
-            batch_size
-        )
+        def generator():
+            total = math.ceil(len(x) / batch_size)
+            for i in range(total):
+                x_batch = tf.constant(x[i * batch_size: (i + 1) * batch_size])
+                y0_batch = tf.ragged.constant(
+                    y0[i * batch_size: (i + 1) * batch_size]
+                ).to_tensor()
+                y1_batch = tf.constant(
+                    y1[i * batch_size: (i + 1) * batch_size])
+                yield x_batch, [y0_batch, y1_batch]
 
-        data_iter = tf.data.Dataset.zip((xiter, (y0iter, y1iter)))
-
-        self.model.fit(data_iter,
+        self.model.fit(generator(),
                        epochs=epochs,
                        steps_per_epoch=len(x) // batch_size)
 
