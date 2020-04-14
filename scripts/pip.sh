@@ -1,4 +1,5 @@
 #!/bin/bash
+# python -m pip install -U twine keyring keyrings.alt
 
 set -e
 rm -rf ./dist
