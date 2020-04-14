@@ -56,12 +56,10 @@ class Parser(object):
         def generator():
             total = math.ceil(len(x) / batch_size)
             for i in range(total):
-                x_batch = tf.constant(x[i * batch_size: (i + 1) * batch_size])
-                y0_batch = tf.ragged.constant(
-                    y0[i * batch_size: (i + 1) * batch_size]
-                ).to_tensor()
-                y1_batch = tf.constant(
-                    y1[i * batch_size: (i + 1) * batch_size])
+                x_batch = tf.constant(x[i * batch_size:(i + 1) * batch_size])
+                y0_batch = tf.ragged.constant(y0[i * batch_size:(i + 1) *
+                                                 batch_size]).to_tensor()
+                y1_batch = tf.constant(y1[i * batch_size:(i + 1) * batch_size])
                 yield x_batch, [y0_batch, y1_batch]
 
         self.model.fit(generator(),
@@ -78,21 +76,21 @@ class Parser(object):
         total_batch = math.ceil(len(x) / batch_size)
         for i in range(total_batch):
             a, b = self.model.predict(
-                tf.constant([
-                    [xx] for xx in x][i*batch_size: (i + 1) * batch_size]))
+                tf.constant([[xx] for xx in x
+                             ][i * batch_size:(i + 1) * batch_size]))
             y0 += a.tolist()
             y1 += b.tolist()
 
         mats = y0
         deps = []
         for mat, xx in zip(mats, x):
-            z = [[word.decode('utf-8') for word in line][:len(xx) + 2]
+            z = [[('' if col == 0 or col == (len(xx) + 1) else
+                   word.decode('utf-8'))
+                  for col, word in enumerate(line)][:len(xx) + 2]
                  for line in mat][:len(xx) + 2]
             deps.append(z)
 
-        pos = [
-            ' '.join(xx.decode('utf-8').split()[1:-1]) for xx in y1
-        ]
+        pos = [' '.join(xx.decode('utf-8').split()[1:-1]) for xx in y1]
 
         return deps, pos
 
