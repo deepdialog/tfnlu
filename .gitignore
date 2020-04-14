@@ -5,7 +5,6 @@
 *.pkl
 *.ipynb
 /*.html
-/*.txt
 build
 dist
 *.egg-info
