@@ -1,2 +1,3 @@
 tensorflow>=2.2.0rc2
 tensorflow-hub
+tensorflow-addons
