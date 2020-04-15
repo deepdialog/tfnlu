@@ -138,7 +138,20 @@ class ParserModel(tf.keras.Model):
         """
         arc, rel, pos = self.compute(inputs, training=training)
 
+        # 避免维度相同
+        rel += tf.random.uniform(tf.shape(rel), minval=0.0, maxval=1e-12)
+        arc += tf.random.uniform(tf.shape(arc), minval=0.0, maxval=1e-12)
+
         pos = tf.argmax(pos, -1)
+        pos = pos[:, 1:-1]
+
+        # 修改第0行，避免多个head
+        z = rel[:, :1]
+        z = z * tf.cast(
+            z >= tf.expand_dims(tf.math.reduce_max(z, -1), 1),
+            z.dtype)
+        z = tf.concat([z, rel[:, 1:]], axis=1)
+        rel = z
 
         # 在第二维上最大
         max_2 = tf.math.reduce_max(rel, axis=1)

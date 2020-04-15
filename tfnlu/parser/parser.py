@@ -90,7 +90,7 @@ class Parser(object):
                  for line in mat][:len(xx) + 2]
             deps.append(z)
 
-        pos = [' '.join(xx.decode('utf-8').split()[1:-1]) for xx in y1]
+        pos = [' '.join(xx.decode('utf-8').split()) for xx in y1]
 
         return deps, pos
 
