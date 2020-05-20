@@ -1,21 +1,19 @@
 import math
 
 import tensorflow as tf
-import tensorflow_addons as tfa
 
 from tfnlu.utils.logger import logger
 from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
 from tfnlu.utils.temp_dir import TempDir
+from tfnlu.utils.get_opt import get_opt
 from .get_tags import get_tags
-from .tagger_model import TaggerModel
-from .score_table import score_table
-from .check_validation import CheckValidation
+from .classification_model import ClassificationModel
 
 MAX_LENGTH = 510
 DEFAULT_BATCH_SIZE = 32
 
 
-class Tagger(object):
+class Classification(object):
     def __init__(self,
                  encoder_path,
                  optimizer='adam',
@@ -33,10 +31,6 @@ class Tagger(object):
         self.tto = None
         self.model_optimizer = None
 
-    def evaluate_table(self, x, y, batch_size=DEFAULT_BATCH_SIZE):
-        preds = self.predict(x, batch_size=batch_size)
-        return score_table(preds, y)
-
     def check_data(self, x, y, batch_size=DEFAULT_BATCH_SIZE):
         if not isinstance(batch_size, int):
             batch_size = DEFAULT_BATCH_SIZE
@@ -46,7 +40,6 @@ class Tagger(object):
         if y:
             assert len(x) == len(y), 'len(X) must equal to len(y)'
             assert isinstance(y[0], str), 'Elements of y should be string'
-            # 暂时关掉，因为X可能有 [MASK] 等特殊符号
             # assert len(x[0]) == len(
             #     y[0].split()
             # ), 'Lengths of each elements in X should as same as Y'
@@ -66,9 +59,7 @@ class Tagger(object):
         ])
         if y:
             data['y'] = tf.constant([
-                [
-                    ' '.join(xx.split()[:MAX_LENGTH])
-                ]
+                xx
                 for xx in y
             ])
         return data
@@ -85,28 +76,16 @@ class Tagger(object):
         if not self.model:
             logger.info('build model')
             word_index, index_word = get_tags(y)
-            logger.info(f'tags count: {len(word_index)}')
+            logger.info(f'targets count: {len(word_index)}')
             logger.info('build model')
-            self.model = TaggerModel(
+            self.model = ClassificationModel(
                 encoder_path=self.encoder_path,
                 word_index=word_index,
                 index_word=index_word,
                 encoder_trainable=self.encoder_trainable)
         if not self.model._is_compiled:
             logger.info('build optimizer')
-            if self.optimizer.lower() == 'adamw':
-                model_optimizer = tf.keras.optimizers.AdamW(
-                    **self.optimizer_arguments
-                )
-            elif self.optimizer.lower() == 'rectifiedadam':
-                model_optimizer = tfa.optimizers.RectifiedAdam(
-                    **self.optimizer_arguments
-                )
-            else:
-                model_optimizer = tf.keras.optimizers.Adam(
-                    **self.optimizer_arguments
-                )
-
+            model_optimizer = get_opt(self.optimizer, self.optimizer_arguments)
             self.model.compile(optimizer=model_optimizer)
 
         logger.info('check model predict')
@@ -116,17 +95,11 @@ class Tagger(object):
         ]), verbose=0)
 
         logger.info('start training')
+        # import pdb; pdb.set_trace()
         self.model.fit(
             data.get('x'),
             data.get('y'),
             epochs=epochs,
-            callbacks=[
-                CheckValidation(
-                    tagger=self,
-                    batch_size=batch_size,
-                    validation_data=validation_data,
-                    save_best=save_best)
-            ],
             batch_size=batch_size
         )
         logger.info('training done')
