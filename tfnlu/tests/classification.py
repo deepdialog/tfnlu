@@ -22,6 +22,7 @@ def main():
         encoder_trainable=True)
 
     tag.fit(x, y, batch_size=2, epochs=2)
+    tag.fit(x, y, batch_size=2, epochs=2)
 
     print(tag.predict(x[:4]))
 
@@ -32,8 +33,6 @@ def main():
         tag2 = pickle.load(fp)
 
     print(tag2.predict(x[:4]))
-
-    tag2.fit(x, y, batch_size=4, epochs=2)
 
     with open('/tmp/model_s2', 'wb') as fp:
         pickle.dump(tag2, fp)

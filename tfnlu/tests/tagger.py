@@ -34,13 +34,13 @@ def main():
 
     print(tag2.predict(x[:4]))
 
-    with open('/tmp/model_s2', 'wb') as fp:
-        pickle.dump(tag2, fp)
+    # with open('/tmp/model_s2', 'wb') as fp:
+    #     pickle.dump(tag2, fp)
 
-    with open('/tmp/model_s2', 'rb') as fp:
-        tag3 = pickle.load(fp)
+    # with open('/tmp/model_s2', 'rb') as fp:
+    #     tag3 = pickle.load(fp)
 
-    print(tag3.predict(x[:4]))
+    # print(tag3.predict(x[:4]))
 
 
 if __name__ == "__main__":
