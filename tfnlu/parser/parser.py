@@ -22,7 +22,9 @@ class Parser(object):
         self.encoder_trainable = encoder_trainable
         self.model = None
 
-    def fit(self, x, y0, y1, epochs=1, batch_size=32, build_only=False):
+    def fit(self,
+            x, y0, y1, epochs=1, batch_size=32,
+            build_only=False, optimizer=None):
         assert hasattr(x, '__len__'), 'X should be a list/np.array'
         assert len(x) > 0, 'len(X) should more than 0'
         assert isinstance(x[0], (tuple, list)), \
@@ -47,7 +49,10 @@ class Parser(object):
             self.model._set_inputs(
                 tf.keras.backend.placeholder((None, None), dtype='string'))
 
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4))
+        self.model.compile(optimizer=(
+                optimizer
+                if optimizer is not None
+                else tf.keras.optimizers.Adam(1e-4)))
 
         if build_only:
             return

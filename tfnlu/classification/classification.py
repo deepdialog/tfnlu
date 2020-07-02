@@ -80,7 +80,8 @@ class Classification(object):
             batch_size=DEFAULT_BATCH_SIZE,
             shuffle=True,
             validation_data=None,
-            save_best=None):
+            save_best=None,
+            optimizer=None):
         data = self.check_data(x, y, batch_size)
         if not self.model:
             logger.info('build model')
@@ -97,7 +98,10 @@ class Classification(object):
                 tf.keras.backend.placeholder((None, None), dtype='string'))
 
         self.model.compile(
-            optimizer=tf.keras.optimizers.Adam(1e-4),
+            optimizer=(
+                optimizer
+                if optimizer is not None
+                else tf.keras.optimizers.Adam(1e-4)),
             metrics=['acc']
         )
 

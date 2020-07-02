@@ -103,7 +103,8 @@ class Tagger(object):
             batch_size=DEFAULT_BATCH_SIZE,
             shuffle=True,
             validation_data=None,
-            save_best=None):
+            save_best=None,
+            optimizer=None):
         data = self.check_data(x, y, batch_size)
         if not self.model:
             logger.info('build model')
@@ -118,7 +119,10 @@ class Tagger(object):
             self.model._set_inputs(
                 tf.keras.backend.placeholder((None, None), dtype='string'))
 
-        self.model.compile(optimizer=tf.keras.optimizers.Adam(1e-4))
+        self.model.compile(optimizer=(
+            optimizer
+            if optimizer is not None
+            else tf.keras.optimizers.Adam(1e-4)))
 
         logger.info('check model predict')
         pred_data = self.check_data(x, y=None, batch_size=batch_size)
