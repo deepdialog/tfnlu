@@ -6,17 +6,23 @@ from tfnlu.tagger import Tagger
 
 
 def main():
-    multi = 2
-    x = ['我要去北京', '我要去巴黎', '今天天气不错', '明天天气不知道怎么样'] * multi
+    multi = 4
+    x = [
+        list(x) for x in [
+            '我要去北京', '我要去巴黎', '今天天气不错', '明天天气不知道怎么样'
+        ]
+    ] * multi
     y = [['O', 'O', 'O', 'Bcity', 'Icity'], ['O', 'O', 'O', 'Bcity', 'Icity'],
          ['Bdate', 'Iadate', 'O', 'O', 'O', 'O'],
          ['Bdate', 'Idate', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O']] * multi
 
     print('samples:', len(x))
 
-    tag = Tagger(encoder_path='./encoders/bert_wwm_zh/')
+    tag = Tagger(
+        encoder_path='./encoders/zh-bert-wwm-L1/',
+        encoder_trainable=True)
 
-    tag.fit(x, y, batch_size=2, epochs=2)
+    tag.fit(x, y, validation_data=(x, y), batch_size=2, epochs=2)
 
     print(tag.predict(x[:4]))
 

@@ -1,7 +1,6 @@
 import math
 
 import tensorflow as tf
-import tensorflow_addons as tfa
 
 from tfnlu.utils.logger import logger
 from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
@@ -18,20 +17,15 @@ DEFAULT_BATCH_SIZE = 32
 class Tagger(object):
     def __init__(self,
                  encoder_path,
-                 optimizer='adam',
-                 optimizer_arguments={},
                  encoder_trainable=False):
         self.encoder_path = encoder_path
         self.encoder_trainable = encoder_trainable
-        self.optimizer = optimizer
-        self.optimizer_arguments = optimizer_arguments
 
         self.model = None
         self.word_index = None
         self.index_word = None
 
         self.tto = None
-        self.model_optimizer = None
 
     def evaluate_table(self, x, y, batch_size=DEFAULT_BATCH_SIZE):
         preds = self.predict(x, batch_size=batch_size)
@@ -42,14 +36,15 @@ class Tagger(object):
             batch_size = DEFAULT_BATCH_SIZE
         assert hasattr(x, '__len__'), 'X should be a array like'
         assert len(x) > 0, 'len(X) should more than 0'
-        assert isinstance(x[0], str), 'Elements of X should be string'
+        assert isinstance(x[0], (tuple, list)), \
+            'Elements of X should be tuple or list'
         if y:
             assert len(x) == len(y), 'len(X) must equal to len(y)'
-            assert isinstance(y[0], str), 'Elements of y should be string'
+            assert isinstance(y[0], (tuple, list)), \
+                'Elements of y should be tuple or list'
             # 暂时关掉，因为X可能有 [MASK] 等特殊符号
-            # assert len(x[0]) == len(
-            #     y[0].split()
-            # ), 'Lengths of each elements in X should as same as Y'
+            assert len(x[0]) == len(y[0]), \
+                'Lengths of each elements in X should as same as Y'
         for xx in x:
             if len(xx) > MAX_LENGTH:
                 logger.warn(
@@ -60,17 +55,15 @@ class Tagger(object):
             'has_y': y is not None,
             'steps': math.ceil(len(x) / batch_size)
         }
-        data['x'] = tf.constant([
-            [xx[:MAX_LENGTH]]
+        data['x'] = tf.ragged.constant([
+            ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]']
             for xx in x
-        ])
+        ]).to_tensor()
         if y:
-            data['y'] = tf.constant([
-                [
-                    ' '.join(xx.split()[:MAX_LENGTH])
-                ]
-                for xx in y
-            ])
+            data['y'] = tf.ragged.constant([
+                ['[CLS]'] + yy[:MAX_LENGTH] + ['[SEP]']
+                for yy in y
+            ]).to_tensor()
         return data
 
     def fit(self,
@@ -94,28 +87,14 @@ class Tagger(object):
                 encoder_trainable=self.encoder_trainable)
         if not self.model._is_compiled:
             logger.info('build optimizer')
-            if self.optimizer.lower() == 'adamw':
-                model_optimizer = tf.keras.optimizers.AdamW(
-                    **self.optimizer_arguments
-                )
-            elif self.optimizer.lower() == 'rectifiedadam':
-                model_optimizer = tfa.optimizers.RectifiedAdam(
-                    **self.optimizer_arguments
-                )
-            else:
-                model_optimizer = tf.keras.optimizers.Adam(
-                    **self.optimizer_arguments
-                )
-
-            self.model.compile(optimizer=model_optimizer)
+            self.model.compile(
+                optimizer=tf.keras.optimizers.Adam(1e-4))
 
         logger.info('check model predict')
-        self.model.predict(tf.constant([
-            [xx[:MAX_LENGTH]]
-            for xx in x[:1]
-        ]), verbose=0)
+        self.model.predict(data.get('x')[:2], verbose=0)
 
         logger.info('start training')
+
         self.model.fit(
             data.get('x'),
             data.get('y'),
@@ -152,8 +131,6 @@ class Tagger(object):
             'model_bin': model_bin,
             'index_word': self.index_word,
             'word_index': self.word_index,
-            'optimizer': self.optimizer,
-            'optimizer_arguments': self.optimizer_arguments
         }
 
     def __setstate__(self, state):
@@ -164,5 +141,3 @@ class Tagger(object):
             self.model = tf.keras.models.load_model(td)
         self.word_index = state.get('word_index')
         self.index_word = state.get('index_word')
-        self.optimizer = state.get('optimizer')
-        self.optimizer_arguments = state.get('optimizer_arguments')

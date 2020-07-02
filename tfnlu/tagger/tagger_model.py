@@ -9,8 +9,16 @@ from .to_tokens import ToTokens
 @tf.function(experimental_relax_shapes=True)
 def get_lengths(x):
     # +2 because encoder include [CLS]/<sos> and [SEP]/<eos>
-    return tf.reshape(tf.strings.length(x, 'UTF8_CHAR'),
-                      (-1, )) + 2
+    # return tf.reshape(tf.strings.length(x, 'UTF8_CHAR'),
+    #                   (-1, )) + 2
+    return tf.reduce_sum(
+        tf.clip_by_value(
+            tf.strings.length(x, 'UTF8_CHAR'),
+            0,
+            1
+        ),
+        axis=-1
+    )
 
 
 @tf.function(experimental_relax_shapes=True)
@@ -34,8 +42,10 @@ class TaggerModel(tf.keras.Model):
         self.to_tags = ToTags(index_word)
         self.encoder_layer = hub.KerasLayer(
             encoder_path,
-            trainable=encoder_trainable
+            trainable=encoder_trainable,
+            output_key='sequence_output'
         )
+        self.masking = tf.keras.layers.Masking()
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
         self.rnn_layers = []
         for _ in range(n_layers):
@@ -43,22 +53,23 @@ class TaggerModel(tf.keras.Model):
                 tf.keras.layers.LSTM(hidden_size,
                                      return_sequences=True))
             self.rnn_layers.append(rnn)
+        self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
         self.crf_layer = CRF(len(word_index))
 
     def compute(self, inputs, training=False):
         lengths = tf.keras.layers.Lambda(get_lengths)(inputs)
-        mask = tf.keras.layers.Lambda(get_mask)(lengths)
 
         x = inputs
 
-        _, x = self.encoder_layer(x, training=training)
-
-        x = self.dropout_layer(x, training=training)
+        x = self.encoder_layer(x, training=training)
+        x = self.masking(x, training=training)
+        # x = self.dropout_layer(x, training=training)
 
         for rnn in self.rnn_layers:
-            x = rnn(x, mask=mask, training=training)
-            x = self.dropout_layer(x, training=training)
+            x = rnn(x, training=training)
+            x = self.norm_layer(x, training=training)
+            # x = self.dropout_layer(x, training=training)
 
         x = self.project_layer(x, training=training)
         tags_id = self.crf_layer(

@@ -17,7 +17,7 @@ def extract_entities(seq: str, x=None) -> list:
     """
     ret = []
     start_ind, start_type = -1, None
-    for i, tag in enumerate(seq.split()):
+    for i, tag in enumerate(seq):
         if tag.startswith('S'):
             if x is not None:
                 ret.append((i, i + 1, tag[1:], x[i:i + 1]))

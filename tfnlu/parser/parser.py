@@ -56,10 +56,15 @@ class Parser(object):
         def generator():
             total = math.ceil(len(x) / batch_size)
             for i in range(total):
-                x_batch = tf.constant(x[i * batch_size:(i + 1) * batch_size])
-                y0_batch = tf.ragged.constant(y0[i * batch_size:(i + 1) *
-                                                 batch_size]).to_tensor()
-                y1_batch = tf.constant(y1[i * batch_size:(i + 1) * batch_size])
+                x_batch = tf.ragged.constant(
+                    x[i * batch_size:(i + 1) * batch_size]
+                ).to_tensor()
+                y0_batch = tf.ragged.constant(
+                    y0[i * batch_size:(i + 1) * batch_size]
+                ).to_tensor()
+                y1_batch = tf.constant(
+                    y1[i * batch_size:(i + 1) * batch_size]
+                )
                 yield x_batch, [y0_batch, y1_batch]
 
         self.model.fit(generator(),

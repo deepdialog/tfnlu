@@ -9,14 +9,19 @@ from tfnlu.parser import Parser
 
 
 def main():
-    x = ['hello', 'world']
+    x = [
+        list(x)
+        for x in ['hello', 'world']
+    ]
 
     y = [
         tf.random.uniform((2, 7, 7), maxval=1, dtype=tf.int32),
         tf.random.uniform((2, 7, 7), maxval=1, dtype=tf.int32)
     ]
 
-    par = Parser('../bert-embs/output/bert_wwm_zh_seq', 50, 50, 5, 5)
+    par = Parser(
+        './encoders/zh-bert-wwm-L1/',
+        50, 50, 5, 5)
 
     par.fit(x, y)
 
