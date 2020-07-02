@@ -2,3 +2,4 @@ tensorflow>=2.2.0
 tensorflow-hub
 tensorflow-addons
 tqdm
+pandas
