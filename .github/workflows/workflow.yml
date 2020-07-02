@@ -25,7 +25,19 @@ jobs:
       run: |
         mkdir -p encoders/zh-roberta-wwm-L1
         tar xvf zh-roberta-wwm-L1.tar.gz -C encoders/zh-roberta-wwm-L1
-    - name: Run Test
+    - name: Install dependencies
       run: |
         pip install -r requirements.txt
-        python -m tfnlu.tests
+    - name: Generate coverage report
+      run: |
+        pip install pytest
+        pip install pytest-cov
+        pytest tfnlu/tests/ --cov=./ --cov-report=xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        env_vars: OS,PYTHON
+        name: codecov-umbrella
+        fail_ci_if_error: true

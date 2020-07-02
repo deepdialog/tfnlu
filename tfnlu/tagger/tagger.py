@@ -146,11 +146,16 @@ class Tagger(object):
         pred = []
         if verbose:
             data = tqdm(data, total=(len(x) - 1) // batch_size + 1)
-        for x in data:
-            p = self.model.predict_on_batch(x)
+        for x_batch in data:
+            p = self.model.predict_on_batch(x_batch)
             pred += [
-                [xx.decode('UTF-8') for xx in x]
-                for x in p.tolist()]
+                [token.decode('UTF-8') for token in sent]
+                for sent in p.tolist()
+            ]
+        pred = [
+            ip[:len(ix)]
+            for ip, ix in zip(pred, x)
+        ]
         return pred
 
     def __getstate__(self):
