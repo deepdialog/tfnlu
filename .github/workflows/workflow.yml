@@ -16,9 +16,8 @@ jobs:
       with:
         python-version: 3.7
     - name: Download Encoder
-    uses: carlosperate/download-file-action@v1.0.3
-    id: download-poetry
-    with:
+      uses: carlosperate/download-file-action@v1.0.3
+      with:
         file-url: 'https://code.aliyun.com/qhduan/zh-roberta-wwm/raw/2c0d7fd709e4719a9ab2ca297f51b24e20586dbe/zh-roberta-wwm-L1.tar.gz'
         file-name: 'zh-roberta-wwm-L1.tar.gz'
         location: './'
