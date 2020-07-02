@@ -15,7 +15,12 @@ jobs:
       uses: actions/setup-python@master
       with:
         python-version: 3.7
-    - name: Generate coverage report
+    - name: Download Bert
+      run: |
+        wget https://code.aliyun.com/qhduan/zh-roberta-wwm/raw/2c0d7fd709e4719a9ab2ca297f51b24e20586dbe/zh-roberta-wwm-L1.tar.gz
+        mkdir -p encoders/zh-roberta-wwm-L1
+        tar xvf zh-roberta-wwm-L1.tar.gz -C encoders/zh-roberta-wwm-L1
+    - name: Run Test
       run: |
         pip install -r requirements.txt
         python -m tfnlu.tests
