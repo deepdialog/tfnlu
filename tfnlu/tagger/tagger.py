@@ -64,13 +64,19 @@ class Tagger(object):
         def _make_gen(x, y=None):
             def _gen_x():
                 for xx in x:
-                    xx = tf.constant(['[CLS]'] + xx + ['[SEP]'], tf.string)
+                    xx = tf.constant(
+                        ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]'],
+                        tf.string)
                     yield xx
 
             def _gen_xy():
                 for xx, yy in zip(x, y):
-                    xx = tf.constant(['[CLS]'] + xx + ['[SEP]'], tf.string)
-                    yy = tf.constant(['[CLS]'] + yy + ['[SEP]'], tf.string)
+                    xx = tf.constant(
+                        ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]'],
+                        tf.string)
+                    yy = tf.constant(
+                        ['[CLS]'] + yy[:MAX_LENGTH] + ['[SEP]'],
+                        tf.string)
                     yield xx, yy
 
             if y is None:
@@ -111,10 +117,8 @@ class Tagger(object):
                 encoder_trainable=self.encoder_trainable)
             self.model._set_inputs(
                 tf.keras.backend.placeholder((None, None), dtype='string'))
-        if not self.model._is_compiled:
-            logger.info('build optimizer')
-            self.model.compile(
-                optimizer=tf.keras.optimizers.Adam(1e-4))
+
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(1e-4))
 
         logger.info('check model predict')
         pred_data = self.check_data(x, y=None, batch_size=batch_size)
@@ -155,11 +159,7 @@ class Tagger(object):
         with TempDir() as td:
             self.model.save(td, include_optimizer=False)
             model_bin = serialize_dir(td)
-        return {
-            'model_bin': model_bin,
-            'index_word': self.index_word,
-            'word_index': self.word_index,
-        }
+        return {'model_bin': model_bin}
 
     def __setstate__(self, state):
         """pickle deserialize."""
@@ -167,5 +167,3 @@ class Tagger(object):
         with TempDir() as td:
             deserialize_dir(td, state.get('model_bin'))
             self.model = tf.keras.models.load_model(td)
-        self.word_index = state.get('word_index')
-        self.index_word = state.get('index_word')

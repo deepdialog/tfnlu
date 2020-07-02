@@ -14,9 +14,6 @@ class ToTokens(tf.keras.layers.Layer):
     def call(self, inputs):
         x = inputs
         x = self.table.lookup(x)
-        # Trick, force TensorFlow thinks we will
-        # - return [None, None], not [None,]
-        x = tf.reshape(x, (tf.shape(x)[0], -1))
         return x
 
     def compute_output_shape(self, input_shape):

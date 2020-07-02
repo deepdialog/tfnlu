@@ -19,12 +19,6 @@ def get_lengths(x):
     )
 
 
-@tf.function
-def get_mask(x):
-    x, maxlen = x
-    return tf.sequence_mask(x, maxlen=maxlen)
-
-
 class ParserModel(tf.keras.Model):
     def __init__(self,
                  encoder_path,

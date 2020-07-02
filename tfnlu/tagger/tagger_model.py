@@ -63,7 +63,7 @@ class TaggerModel(tf.keras.Model):
         x = self.masking(x, training=training)
         x = self.dropout_layer(x, training=training)
 
-        lengths = tf.keras.layers.Lambda(get_lengths)(inputs)
+        lengths = get_lengths(inputs)
 
         for rnn in self.rnn_layers:
             x = rnn(x, training=training)

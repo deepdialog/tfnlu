@@ -44,10 +44,10 @@ class Parser(object):
                 index_word=index_word,
                 pos_word_index=pos_word_index,
                 pos_index_word=pos_index_word)
+            self.model._set_inputs(
+                tf.keras.backend.placeholder((None, None), dtype='string'))
 
-        if not self.model._is_compiled:
-            logger.info('parser.fit build optimizers')
-            self.model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4))
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4))
 
         if build_only:
             return

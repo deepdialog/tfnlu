@@ -5,16 +5,16 @@ from .to_tags import ToTags
 from .to_tokens import ToTokens
 
 
-@tf.function(experimental_relax_shapes=True)
+@tf.function
 def get_lengths(x):
-    # +2 because encoder include [CLS]/<sos> and [SEP]/<eos>
-    return tf.reshape(tf.strings.length(x, 'UTF8_CHAR'),
-                      (-1, )) + 2
-
-
-@tf.function(experimental_relax_shapes=True)
-def get_mask(x):
-    return tf.sequence_mask(x)
+    return tf.reduce_sum(
+        tf.clip_by_value(
+            tf.strings.length(x, 'UTF8_CHAR'),
+            0,
+            1
+        ),
+        axis=-1
+    )
 
 
 class ClassificationModel(tf.keras.Model):
@@ -29,42 +29,49 @@ class ClassificationModel(tf.keras.Model):
                  n_layers=1,
                  **kwargs):
         super(ClassificationModel, self).__init__(**kwargs)
+        self.encoder_trainable = encoder_trainable
         self.to_token = ToTokens(word_index)
         self.to_tags = ToTags(index_word)
         self.encoder_layer = hub.KerasLayer(
             encoder_path,
-            trainable=encoder_trainable
+            trainable=encoder_trainable,
+            output_key='sequence_output'
         )
+        self.masking = tf.keras.layers.Masking()
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
-        self.rnn_layers = []
-        for _ in range(n_layers):
-            rnn = tf.keras.layers.Bidirectional(
-                tf.keras.layers.LSTM(hidden_size,
-                                     return_sequences=False))
-            self.rnn_layers.append(rnn)
+        if not self.encoder_trainable:
+            self.rnn_layers = []
+            for _ in range(n_layers):
+                rnn = tf.keras.layers.Bidirectional(
+                    tf.keras.layers.LSTM(hidden_size,
+                                         return_sequences=False))
+                self.rnn_layers.append(rnn)
+            self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
 
     def compute(self, inputs, training=False):
-        lengths = tf.keras.layers.Lambda(get_lengths)(inputs)
-        mask = tf.keras.layers.Lambda(get_mask)(lengths)
 
         x = inputs
 
-        _, x = self.encoder_layer(x, training=training)
+        x = self.encoder_layer(x, training=training)
+        x = self.masking(x)
 
         x = self.dropout_layer(x, training=training)
 
-        for rnn in self.rnn_layers:
-            x = rnn(x, mask=mask, training=training)
-            x = self.dropout_layer(x, training=training)
+        if not self.encoder_trainable:
+            for rnn in self.rnn_layers:
+                x = rnn(x, training=training)
+                x = self.norm_layer(x)
+        else:
+            x = x[:, 0, :]
 
         x = self.project_layer(x, training=training)
+        lengths = get_lengths(inputs)
         tags_id = tf.math.argmax(x, -1)
         return x, lengths, tags_id
 
     def call(self, inputs, training=False):
         _, lengths, tags_id = self.compute(inputs, training=training)
-        # import pdb; pdb.set_trace()
         return self.to_tags(tags_id)
 
     def train_step(self, data):
@@ -72,7 +79,6 @@ class ClassificationModel(tf.keras.Model):
         y = self.to_token(y)
         with tf.GradientTape() as tape:
             logits, lengths, tags_id = self.compute(x, training=True)
-            # tf.nn.sigmoid_cross_entropy_with_logits
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=y,
                 logits=logits
