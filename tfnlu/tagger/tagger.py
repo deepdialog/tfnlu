@@ -161,6 +161,10 @@ class Tagger(TFNLUModel):
             pbar = tqdm(pbar, file=sys.stdout)
         for i in pbar:
             x_batch = x[i * batch_size:(i + 1) * batch_size]
+            x_batch = [
+                ['[CLS]'] + xx + ['[SEP]']
+                for xx in x_batch
+            ]
             x_batch = tf.ragged.constant(x_batch).to_tensor()
             p = self.model(x_batch)
             pred += [
