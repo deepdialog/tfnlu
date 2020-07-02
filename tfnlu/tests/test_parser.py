@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import pytest
 from tfnlu.parser import Parser
 
 
-@pytest.mark.pytestto
 class TestParser(object):
-    @pytest.mark.asserttest
+
     def test_parser(self):
         x = [
             ['你', '好'],
@@ -45,7 +43,7 @@ class TestParser(object):
 
         par = Parser(
             './encoders/zh-roberta-wwm-L1',
-            30, 30, 30, encoder_trainable=True)
+            5, 5, 5, encoder_trainable=True)
 
         par.fit(x, y0, y1, batch_size=2, epochs=2)
 

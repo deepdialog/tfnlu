@@ -2,19 +2,19 @@
 import tensorflow as tf
 
 from tfnlu.utils.logger import logger
-from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
-from tfnlu.utils.temp_dir import TempDir
+from tfnlu.utils.config import MAX_LENGTH, DEFAULT_BATCH_SIZE
+from tfnlu.utils.tfnlu_model import TFNLUModel
 from .get_tags import get_tags
 from .classification_model import ClassificationModel
 
-MAX_LENGTH = 510
-DEFAULT_BATCH_SIZE = 32
 
-
-class Classification(object):
+class Classification(TFNLUModel):
     def __init__(self,
                  encoder_path,
                  encoder_trainable=False):
+
+        super(Classification, self).__init__()
+
         self.encoder_path = encoder_path
         self.encoder_trainable = encoder_trainable
 
@@ -68,8 +68,23 @@ class Classification(object):
                         tf.TensorShape([None, ]),
                         tf.TensorShape([]))}
 
+        def size_xy(x, y):
+            return tf.size(x)
+
+        def size_x(x):
+            return tf.size(x)
+
         dataset = tf.data.Dataset.from_generator(**_make_gen(x, y))
-        dataset = dataset.padded_batch(batch_size).prefetch(2)
+        bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
+        dataset = dataset.apply(
+            tf.data.experimental.bucket_by_sequence_length(
+                size_xy if y is not None else size_x,
+                bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
+                bucket_boundaries=bucket_boundaries
+            )
+        )
+        dataset = dataset.cache()
+        dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
 
@@ -121,18 +136,3 @@ class Classification(object):
         pred = self.model.predict(data, verbose=verbose)
         pred = [x.decode('UTF-8') for x in pred.tolist()]
         return pred
-
-    def __getstate__(self):
-        """pickle serialize."""
-        assert self.model is not None, 'model not fit or load'
-        with TempDir() as td:
-            self.model.save(td, include_optimizer=False)
-            model_bin = serialize_dir(td)
-        return {'model_bin': model_bin}
-
-    def __setstate__(self, state):
-        """pickle deserialize."""
-        assert 'model_bin' in state, 'invalid model state'
-        with TempDir() as td:
-            deserialize_dir(td, state.get('model_bin'))
-            self.model = tf.keras.models.load_model(td)

@@ -3,31 +3,21 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from tfnlu.utils.logger import logger
-from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
-from tfnlu.utils.temp_dir import TempDir
+from tfnlu.utils.tfnlu_model import TFNLUModel
+from tfnlu.utils.config import MAX_LENGTH, DEFAULT_BATCH_SIZE
 from .get_tags import get_tags
 from .tagger_model import TaggerModel
 from .score_table import score_table
 from .check_validation import CheckValidation
 
-MAX_LENGTH = 510  # = 512 - |{[CLS], [SEP]}|
-DEFAULT_BATCH_SIZE = 32
 
-
-@tf.function
-def _to_tensor_xy(x, y):
-    return x.to_tensor(), y.to_tensor()
-
-
-@tf.function
-def _to_tensor_x(x):
-    return x.to_tensor()
-
-
-class Tagger(object):
+class Tagger(TFNLUModel):
     def __init__(self,
                  encoder_path,
                  encoder_trainable=False):
+
+        super(Tagger, self).__init__()
+
         self.encoder_path = encoder_path
         self.encoder_trainable = encoder_trainable
 
@@ -91,8 +81,23 @@ class Tagger(object):
                         tf.TensorShape([None, ]),
                         tf.TensorShape([None, ]))}
 
+        def size_xy(x, y):
+            return tf.size(x)
+
+        def size_x(x):
+            return tf.size(x)
+
         dataset = tf.data.Dataset.from_generator(**_make_gen(x, y))
-        dataset = dataset.padded_batch(batch_size).prefetch(2)
+        bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
+        dataset = dataset.apply(
+            tf.data.experimental.bucket_by_sequence_length(
+                size_xy if y is not None else size_x,
+                bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
+                bucket_boundaries=bucket_boundaries
+            )
+        )
+        dataset = dataset.cache()
+        dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
 
@@ -161,18 +166,3 @@ class Tagger(object):
             for ip, ix in zip(pred, x)
         ]
         return pred
-
-    def __getstate__(self):
-        """pickle serialize."""
-        assert self.model is not None, 'model not fit or load'
-        with TempDir() as td:
-            self.model.save(td, include_optimizer=False)
-            model_bin = serialize_dir(td)
-        return {'model_bin': model_bin}
-
-    def __setstate__(self, state):
-        """pickle deserialize."""
-        assert 'model_bin' in state, 'invalid model state'
-        with TempDir() as td:
-            deserialize_dir(td, state.get('model_bin'))
-            self.model = tf.keras.models.load_model(td)

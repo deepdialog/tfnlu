@@ -6,7 +6,7 @@ from .to_tags import ToTags
 from .to_tokens import ToTokens
 
 
-@tf.function
+@tf.function(experimental_relax_shapes=True)
 def get_lengths(x):
     return tf.reduce_sum(
         tf.clip_by_value(
@@ -18,7 +18,7 @@ def get_lengths(x):
     )
 
 
-@tf.function
+@tf.function(experimental_relax_shapes=True)
 def get_mask(x):
     x, maxlen = x
     return tf.sequence_mask(x, maxlen=maxlen)

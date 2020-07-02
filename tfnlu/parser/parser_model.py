@@ -7,7 +7,7 @@ from .to_tags import ToTags
 from .pos_to_tags import PosToTags
 
 
-@tf.function
+@tf.function(experimental_relax_shapes=True)
 def get_lengths(x):
     return tf.reduce_sum(
         tf.clip_by_value(

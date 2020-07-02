@@ -1,20 +1,23 @@
-import math
+
 import tensorflow as tf
-from tfnlu.utils.temp_dir import TempDir
-from tfnlu.utils.serialize_dir import serialize_dir, deserialize_dir
+from tfnlu.utils.tfnlu_model import TFNLUModel
 from tfnlu.utils.logger import logger
+from tfnlu.utils.config import MAX_LENGTH, DEFAULT_BATCH_SIZE
 from .parser_model import ParserModel
 from .get_tags import get_tags
 from .pos_get_tags import pos_get_tags
 
 
-class Parser(object):
+class Parser(TFNLUModel):
     def __init__(self,
                  encoder_path,
                  proj0_size=500,
                  proj1_size=100,
                  hidden_size=400,
                  encoder_trainable=False):
+
+        super(Parser, self).__init__()
+
         self.encoder_path = encoder_path
         self.proj0_size = proj0_size
         self.proj1_size = proj1_size
@@ -23,7 +26,7 @@ class Parser(object):
         self.model = None
 
     def fit(self,
-            x, y0, y1, epochs=1, batch_size=32,
+            x, y0, y1, epochs=1, batch_size=DEFAULT_BATCH_SIZE,
             build_only=False, optimizer=None):
         assert hasattr(x, '__len__'), 'X should be a list/np.array'
         assert len(x) > 0, 'len(X) should more than 0'
@@ -59,31 +62,46 @@ class Parser(object):
 
         logger.info('parser.fit start training')
 
-        def generator():
-            total = math.ceil(len(x) / batch_size)
-            for i in range(total):
-                x_batch = tf.ragged.constant(
-                    x[i * batch_size:(i + 1) * batch_size]
-                ).to_tensor()
-                y0_batch = tf.ragged.constant(
-                    y0[i * batch_size:(i + 1) * batch_size]
-                ).to_tensor()
-                y1_batch = tf.ragged.constant(
-                    y1[i * batch_size:(i + 1) * batch_size]
-                ).to_tensor()
-                yield x_batch, (y0_batch, y1_batch)
+        def make_generator(data):
+            def _gen():
+                for item in data:
+                    yield tf.constant(item, tf.string)
+            return _gen
 
-        dataset = tf.data.Dataset.from_generator(
-            generator,
-            (tf.string, (tf.string, tf.string)),
-            (
-                tf.TensorShape([None, None]),
-                (
-                    tf.TensorShape([None, None, None]),
-                    tf.TensorShape([None, None])
+        x_dataset = tf.data.Dataset.from_generator(
+            make_generator(x),
+            tf.string,
+            tf.TensorShape([None, ])
+        )
+
+        y0_dataset = tf.data.Dataset.from_generator(
+            make_generator(y0),
+            tf.string,
+            tf.TensorShape([None, None])
+        )
+
+        y1_dataset = tf.data.Dataset.from_generator(
+            make_generator(y1),
+            tf.string,
+            tf.TensorShape([None, ])
+        )
+
+        bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
+        bucket_batch_sizes = [batch_size] * (len(bucket_boundaries) + 1)
+        x_dataset, y0_dataset, y1_dataset = [
+            dataset.apply(
+                tf.data.experimental.bucket_by_sequence_length(
+                    tf.size,
+                    bucket_batch_sizes=bucket_batch_sizes,
+                    bucket_boundaries=bucket_boundaries
                 )
             )
-        ).prefetch(2)
+            for dataset in (x_dataset, y0_dataset, y1_dataset)
+        ]
+
+        dataset = tf.data.Dataset.zip((x_dataset, (y0_dataset, y1_dataset)))
+        dataset = dataset.cache()
+        dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         for xb, _ in dataset.take(2):
             self.model.predict_on_batch(xb)
@@ -119,18 +137,3 @@ class Parser(object):
         ]
 
         return deps, pos
-
-    def __getstate__(self):
-        """pickle serialize."""
-        assert self.model is not None, 'model not fit or load'
-        with TempDir() as td:
-            self.model.save(td, include_optimizer=False)
-            model_bin = serialize_dir(td)
-        return {'model_bin': model_bin}
-
-    def __setstate__(self, state):
-        """pikle deserialize."""
-        assert 'model_bin' in state, 'invalid model state'
-        with TempDir() as td:
-            deserialize_dir(td, state.get('model_bin'))
-            self.model = tf.keras.models.load_model(td)

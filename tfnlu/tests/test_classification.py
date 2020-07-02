@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import pytest
 from tfnlu.classification import Classification
 
 
-@pytest.mark.pytestto
 class TestClassification(object):
-    @pytest.mark.asserttest
+
     def test_classification(self):
         multi = 2
         x = [

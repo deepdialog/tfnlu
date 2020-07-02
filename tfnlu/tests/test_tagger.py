@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import pytest
 from tfnlu.tagger import Tagger
 
 
-@pytest.mark.pytestto
 class TestTagger(object):
-    @pytest.mark.asserttest
+
     def test_tagger(self):
         multi = 4
         x = [list(x)
