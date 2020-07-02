@@ -14,12 +14,12 @@ class PosToTokens(tf.keras.layers.Layer):
     def call(self, inputs):
         x = inputs
         # Add start token and remove, for better NER performance
-        x = tf.strings.regex_replace(x, '^', '[CLS] ')
-        x = tf.strings.regex_replace(x, '$', ' [SEP]')
+        # x = tf.strings.regex_replace(x, '^', '[CLS] ')
+        # x = tf.strings.regex_replace(x, '$', ' [SEP]')
         # Trick, reshape for TensorFlow problem
-        x = tf.reshape(x, (-1,))
-        x = tf.strings.split(x, sep=' ')
-        x = x.to_tensor('')
+        # x = tf.reshape(x, (-1,))
+        # x = tf.strings.split(x, sep=' ')
+        # x = x.to_tensor('')
         x = self.table.lookup(x)
         # Trick, force TensorFlow thinks we will
         # - return [None, None], not [None,]

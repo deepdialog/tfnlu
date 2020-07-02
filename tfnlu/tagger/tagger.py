@@ -86,7 +86,7 @@ class Tagger(object):
                         tf.TensorShape([None, ]))}
 
         dataset = tf.data.Dataset.from_generator(**_make_gen(x, y))
-        dataset = dataset.padded_batch(batch_size)
+        dataset = dataset.padded_batch(batch_size).prefetch(2)
 
         return dataset
 

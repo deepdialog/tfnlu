@@ -7,16 +7,22 @@ from .to_tags import ToTags
 from .pos_to_tags import PosToTags
 
 
-@tf.function(experimental_relax_shapes=True)
+@tf.function
 def get_lengths(x):
-    # +2 because encoder include [CLS]/<sos> and [SEP]/<eos>
-    return tf.reshape(tf.strings.length(x, 'UTF8_CHAR'),
-                      (-1, )) + 2
+    return tf.reduce_sum(
+        tf.clip_by_value(
+            tf.strings.length(x, 'UTF8_CHAR'),
+            0,
+            1
+        ),
+        axis=-1
+    )
 
 
-@tf.function(experimental_relax_shapes=True)
+@tf.function
 def get_mask(x):
-    return tf.sequence_mask(x)
+    x, maxlen = x
+    return tf.sequence_mask(x, maxlen=maxlen)
 
 
 class ParserModel(tf.keras.Model):
@@ -36,8 +42,10 @@ class ParserModel(tf.keras.Model):
         super(ParserModel, self).__init__(**kwargs)
         self.encoder_layer = hub.KerasLayer(
             encoder_path,
-            trainable=encoder_trainable
+            trainable=encoder_trainable,
+            output_key='sequence_output'
         )
+        self.masking = tf.keras.layers.Masking()
 
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
 
@@ -54,6 +62,8 @@ class ParserModel(tf.keras.Model):
                 tf.keras.layers.LSTM(hidden_size,
                                      return_sequences=True))
             self.rnn_layers1.append(rnn)
+
+        self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
 
         self.dep_mlp = tf.keras.layers.Dense(hidden_size)
         self.dep_concat = tf.keras.layers.Concatenate(axis=-1)
@@ -81,17 +91,15 @@ class ParserModel(tf.keras.Model):
         input:
             inputs: [batch_size, lengths]
         """
-        lengths = tf.keras.layers.Lambda(get_lengths)(inputs)
-        mask = tf.keras.layers.Lambda(get_mask)(lengths)
-
-        _, encoder_out = self.encoder_layer(inputs, training=training)
+        encoder_out = self.encoder_layer(inputs, training=training)
+        encoder_out = self.masking(encoder_out, training=training)
 
         x = encoder_out
         x = self.dropout_layer(x, training=training)
 
         for rnn in self.rnn_layers0:
-            x = rnn(x, mask=mask, training=training)
-            x = self.dropout_layer(x, training=training)
+            x = rnn(x, training=training)
+            x = self.norm_layer(x)
 
         pos = x
         pos = self.pos_mlp(pos)
@@ -103,8 +111,8 @@ class ParserModel(tf.keras.Model):
         x = self.dep_concat([encoder_out, x])
 
         for rnn in self.rnn_layers1:
-            x = rnn(x, mask=mask, training=training)
-            x = self.dropout_layer(x, training=training)
+            x = rnn(x, training=training)
+            x = self.norm_layer(x)
 
         # t0: [batch_size, lengths, lengths, tag0_size]
         t0 = self.b0([
@@ -142,9 +150,6 @@ class ParserModel(tf.keras.Model):
         rel += tf.random.uniform(tf.shape(rel), minval=0.0, maxval=1e-12)
         arc += tf.random.uniform(tf.shape(arc), minval=0.0, maxval=1e-12)
 
-        pos = tf.argmax(pos, -1)
-        pos = pos[:, 1:-1]
-
         # 修改第0行，避免多个head
         z = rel[:, :1]
         z = z * tf.cast(
@@ -162,15 +167,15 @@ class ParserModel(tf.keras.Model):
         arc = tf.argmax(arc, -1)
 
         arc = self.to_tags(arc)
+
+        pos = tf.argmax(pos, -1)
         pos = self.pos_to_tags(pos)
 
         return arc, pos
 
     def train_step(self, data):
         x, (y0, y1) = data
-        lengths = tf.strings.length(
-            x, unit='UTF8_CHAR'
-        ) + 2
+        lengths = get_lengths(x)
         y_arc = self.to_tokens(y0)
         y_pos = self.pos_to_tokens(y1)
         y_rel = tf.cast(
@@ -179,13 +184,14 @@ class ParserModel(tf.keras.Model):
         )
         with tf.GradientTape() as tape:
             p_arc, p_rel, p_pos = self.compute(x, training=True)
-            l0 = parser_loss(y_arc, p_arc)
-            l1 = parser_loss_bin(y_rel, p_rel, lengths) * 5.0
-            l2 = parser_loss_pos(y_pos, p_pos, lengths) * 0.01
+            l0 = parser_loss(y_arc, p_arc, lengths)
+            l1 = parser_loss_bin(y_rel, p_rel, lengths)
+            l2 = parser_loss_pos(y_pos, p_pos, lengths)
             loss = l0 + l1 + l2
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(
             zip(gradients, self.trainable_variables))
+
         ret = {
             m.name: m.result() for m in self.metrics
         }
@@ -196,9 +202,21 @@ class ParserModel(tf.keras.Model):
         return ret
 
 
+def parser_loss(y_true, y_pred, lengths):
+    mask = tf.sequence_mask(lengths)
+    mask = tf.cast(mask, tf.float32)
+    mask = tf.expand_dims(mask, 1)
+    mask = tf.transpose(mask, (0, 2, 1)) @ mask
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred)
+    loss *= tf.cast(mask, loss.dtype)
+    loss = tf.reduce_sum(loss) / tf.cast(tf.reduce_sum(mask), loss.dtype)
+    return loss
+
+
 def parser_loss_bin(y_true, y_pred, lengths):
     mask = tf.sequence_mask(lengths)
     mask = tf.cast(mask, tf.float32)
+    mask = tf.expand_dims(mask, 1)
     mask = tf.transpose(mask, (0, 2, 1)) @ mask
     loss = tf.keras.backend.binary_crossentropy(y_true, y_pred)
     loss *= mask
@@ -212,14 +230,4 @@ def parser_loss_pos(y_true, y_pred, lengths):
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred)
     loss *= mask
     loss = tf.reduce_sum(loss) / tf.reduce_sum(mask)
-    return loss
-
-
-def parser_loss(y_true, y_pred):
-    mask = tf.cast(
-        tf.math.greater(y_true, 0),
-        tf.float32)
-    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred)
-    loss *= tf.cast(mask, loss.dtype)
-    loss = tf.reduce_sum(loss) / tf.cast(tf.reduce_sum(mask), loss.dtype)
     return loss

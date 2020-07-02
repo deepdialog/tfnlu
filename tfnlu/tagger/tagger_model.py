@@ -6,9 +6,8 @@ from .to_tags import ToTags
 from .to_tokens import ToTokens
 
 
-@tf.function()
+@tf.function
 def get_lengths(x):
-    # +2 because encoder include [CLS]/<sos> and [SEP]/<eos>
     return tf.reduce_sum(
         tf.clip_by_value(
             tf.strings.length(x, 'UTF8_CHAR'),
@@ -19,7 +18,7 @@ def get_lengths(x):
     )
 
 
-@tf.function()
+@tf.function
 def get_mask(x):
     x, maxlen = x
     return tf.sequence_mask(x, maxlen=maxlen)

@@ -1,31 +1,56 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import json
 import pickle
-
-import tensorflow as tf
 
 from tfnlu.parser import Parser
 
 
 def main():
     x = [
-        list(x)
-        for x in ['hello', 'world']
+        ['你', '好'],
+        ['我', '不', '好'],
+        ['你', '好'],
+        ['你', '不', '好']
     ]
 
-    y = [
-        tf.random.uniform((2, 7, 7), maxval=1, dtype=tf.int32),
-        tf.random.uniform((2, 7, 7), maxval=1, dtype=tf.int32)
+    y0 = [
+        [
+            ['', 'G'],
+            ['', '']
+        ],
+        [
+            ['', 'B', 'G'],
+            ['', '', ''],
+            ['', '', ''],
+        ],
+        [
+            ['', 'G'],
+            ['', '']
+        ],
+        [
+            ['', 'B', 'G'],
+            ['', '', ''],
+            ['', '', ''],
+        ]
+    ]
+    y1 = [
+        ['', 'S'],
+        ['', '', 'S'],
+        ['', 'S'],
+        ['', '', 'S'],
     ]
 
     par = Parser(
-        './encoders/zh-bert-wwm-L1/',
-        50, 50, 5, 5)
+        './encoders/zh-roberta-wwm-L1',
+        30, 30, 30, encoder_trainable=True)
 
-    par.fit(x, y)
+    par.fit(x, y0, y1, batch_size=2, epochs=20)
 
-    par.predict(x)[0].shape
+    ret = par.predict(x)
+    print(json.dumps(ret[0], indent=4))
+    print(json.dumps(ret[1], indent=4))
 
     with open('/tmp/par_test', 'wb') as fp:
         pickle.dump(par, fp)
@@ -33,7 +58,11 @@ def main():
     with open('/tmp/par_test', 'rb') as fp:
         par2 = pickle.load(fp)
 
-    par2.predict(x)[0].shape
+    par2.fit(x, y0, y1, batch_size=2, epochs=5)
+
+    ret2 = par2.predict(x)
+    print(json.dumps(ret2[0], indent=4))
+    print(json.dumps(ret2[1], indent=4))
 
 
 if __name__ == "__main__":
