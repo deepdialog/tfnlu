@@ -1,4 +1,6 @@
 
+import sys
+
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -151,15 +153,19 @@ class Tagger(TFNLUModel):
 
     def predict(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1):
         assert self.model is not None, 'model not fit or load'
-        data = self.check_data(x=x, batch_size=batch_size)
         pred = []
+
+        total_batch = int((len(x) - 1) / batch_size) + 1
+        pbar = range(total_batch)
         if verbose:
-            data = tqdm(data, total=(len(x) - 1) // batch_size + 1)
-        for x_batch in data:
-            p = self.model.predict_on_batch(x_batch)
+            pbar = tqdm(pbar, file=sys.stdout)
+        for i in pbar:
+            x_batch = x[i * batch_size:(i + 1) * batch_size]
+            x_batch = tf.ragged.constant(x_batch).to_tensor()
+            p = self.model(x_batch)
             pred += [
                 [token.decode('UTF-8') for token in sent]
-                for sent in p.tolist()
+                for sent in p.numpy().tolist()
             ]
         pred = [
             ip[:len(ix)]

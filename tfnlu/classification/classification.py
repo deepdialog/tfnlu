@@ -1,4 +1,7 @@
 
+import sys
+
+from tqdm import tqdm
 import tensorflow as tf
 
 from tfnlu.utils.logger import logger
@@ -132,7 +135,16 @@ class Classification(TFNLUModel):
 
     def predict(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1):
         assert self.model is not None, 'model not fit or load'
-        data = self.check_data(x, None, batch_size)
-        pred = self.model.predict(data, verbose=verbose)
-        pred = [x.decode('UTF-8') for x in pred.tolist()]
+
+        pred = []
+        total_batch = int((len(x) - 1) / batch_size) + 1
+        pbar = range(total_batch)
+        if verbose:
+            pbar = tqdm(pbar, file=sys.stdout)
+        for i in pbar:
+            x_batch = x[i * batch_size:(i + 1) * batch_size]
+            x_batch = tf.ragged.constant(x_batch).to_tensor()
+            p = self.model(x_batch)
+            pred += [x.decode('UTF-8') for x in p.numpy().tolist()]
+
         return pred

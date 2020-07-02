@@ -11,10 +11,6 @@ class ToTags(tf.keras.layers.Layer):
             tf.constant(''))  # default value
 
     def call(self, inputs):
-        x, mask = inputs
-        x = x * tf.cast(mask, tf.int32)
+        x = inputs
         x = self.table.lookup(x)
         return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape[0], 1

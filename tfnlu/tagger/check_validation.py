@@ -21,25 +21,25 @@ class CheckValidation(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         if self.validation_data is None:
             return
-        print()
+        tf.print()
         validation_result = self.tagger.evaluate_table(
             x=self.validation_data[0],
             y=self.validation_data[1],
             batch_size=self.batch_size
         )
         f1 = validation_result.iloc[-1]['f1score']
-        print(validation_result)
+        tf.print(validation_result)
 
         if self.save_best is None:
             return
 
         if self.best_f1 is None:
             self.best_f1 = f1
-            print(f'best score: {self.best_f1:.4f}')
+            tf.print(f'best score: {self.best_f1:.4f}')
             with open(self.save_best, 'wb') as fp:
                 pickle.dump(self.tagger, fp)
         elif f1 > self.best_f1:
-            print(
+            tf.print(
                 f'best score: {f1:.4f} > '
                 f'before {self.best_f1:.4f} '
                 'saved')
@@ -47,7 +47,7 @@ class CheckValidation(tf.keras.callbacks.Callback):
             with open(self.save_best, 'wb') as fp:
                 pickle.dump(self.tagger, fp)
         elif f1 <= self.best_f1:
-            print(
+            tf.print(
                 f'best score: {f1:.4f} <= '
                 f'before {self.best_f1:.4f} '
                 'do nothing')

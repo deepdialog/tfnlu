@@ -6,7 +6,6 @@ from .to_tags import ToTags
 from .to_tokens import ToTokens
 
 
-@tf.function(experimental_relax_shapes=True)
 def get_lengths(x):
     return tf.reduce_sum(
         tf.clip_by_value(
@@ -18,10 +17,10 @@ def get_lengths(x):
     )
 
 
-@tf.function(experimental_relax_shapes=True)
-def get_mask(x):
-    x, maxlen = x
-    return tf.sequence_mask(x, maxlen=maxlen)
+# @tf.function(experimental_relax_shapes=True)
+# def get_mask(x):
+#     x, maxlen = x
+#     return tf.sequence_mask(x, maxlen=maxlen)
 
 
 class TaggerModel(tf.keras.Model):
@@ -68,28 +67,24 @@ class TaggerModel(tf.keras.Model):
         for rnn in self.rnn_layers:
             x = rnn(x, training=training)
             x = self.norm_layer(x, training=training)
-            # x = self.dropout_layer(x, training=training)
 
         x = self.project_layer(x, training=training)
+        return x, lengths
+
+    @tf.function(experimental_relax_shapes=True)
+    def call(self, inputs, training=False):
+        x, lengths = self.compute(inputs, training=training)
         tags_id = self.crf_layer(
             x, lengths=lengths, training=training)
         tags_id = tags_id[:, 1:-1]
-        return x, lengths, tags_id
-
-    def call(self, inputs, training=False):
-        _, lengths, tags_id = self.compute(inputs, training=training)
-        mask = tf.keras.layers.Lambda(get_mask)([
-            lengths - 2,
-            tf.shape(tags_id)[1]
-        ])
-        return self.to_tags([tags_id, mask])
+        return self.to_tags(tags_id)
 
     def train_step(self, data):
         x, y = data
         yseq = self.to_token(y)
+        transition_params = self.crf_layer.transition_params
         with tf.GradientTape() as tape:
-            logits, lengths, tags_id = self.compute(x, training=True)
-            transition_params = self.crf_layer.transition_params
+            logits, lengths = self.compute(x, training=True)
             loss = crf_loss(inputs=logits,
                             tag_indices=yseq,
                             transition_params=transition_params,
@@ -98,7 +93,6 @@ class TaggerModel(tf.keras.Model):
         self.optimizer.apply_gradients(
             zip(gradients, self.trainable_variables))
 
-        self.compiled_metrics.update_state(y, tags_id)
         ret = {
             m.name: m.result() for m in self.metrics
         }
