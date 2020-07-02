@@ -12,11 +12,8 @@ class ToTags(tf.keras.layers.Layer):
 
     def call(self, inputs):
         x, mask = inputs
+        x = x * tf.cast(mask, tf.int32)
         x = self.table.lookup(x)
-        x = tf.ragged.boolean_mask(x, mask)
-        x = tf.strings.reduce_join(
-            x, axis=-1, separator=' '
-        )
         return x
 
     def compute_output_shape(self, input_shape):

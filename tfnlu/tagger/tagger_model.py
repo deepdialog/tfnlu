@@ -6,11 +6,9 @@ from .to_tags import ToTags
 from .to_tokens import ToTokens
 
 
-@tf.function(experimental_relax_shapes=True)
+@tf.function()
 def get_lengths(x):
     # +2 because encoder include [CLS]/<sos> and [SEP]/<eos>
-    # return tf.reshape(tf.strings.length(x, 'UTF8_CHAR'),
-    #                   (-1, )) + 2
     return tf.reduce_sum(
         tf.clip_by_value(
             tf.strings.length(x, 'UTF8_CHAR'),
@@ -21,9 +19,10 @@ def get_lengths(x):
     )
 
 
-@tf.function(experimental_relax_shapes=True)
+@tf.function()
 def get_mask(x):
-    return tf.sequence_mask(x)
+    x, maxlen = x
+    return tf.sequence_mask(x, maxlen=maxlen)
 
 
 class TaggerModel(tf.keras.Model):
@@ -58,13 +57,14 @@ class TaggerModel(tf.keras.Model):
         self.crf_layer = CRF(len(word_index))
 
     def compute(self, inputs, training=False):
-        lengths = tf.keras.layers.Lambda(get_lengths)(inputs)
 
         x = inputs
 
         x = self.encoder_layer(x, training=training)
         x = self.masking(x, training=training)
-        # x = self.dropout_layer(x, training=training)
+        x = self.dropout_layer(x, training=training)
+
+        lengths = tf.keras.layers.Lambda(get_lengths)(inputs)
 
         for rnn in self.rnn_layers:
             x = rnn(x, training=training)
@@ -79,7 +79,10 @@ class TaggerModel(tf.keras.Model):
 
     def call(self, inputs, training=False):
         _, lengths, tags_id = self.compute(inputs, training=training)
-        mask = tf.keras.layers.Lambda(get_mask)(lengths - 2)
+        mask = tf.keras.layers.Lambda(get_mask)([
+            lengths - 2,
+            tf.shape(tags_id)[1]
+        ])
         return self.to_tags([tags_id, mask])
 
     def train_step(self, data):

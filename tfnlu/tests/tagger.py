@@ -13,13 +13,13 @@ def main():
         ]
     ] * multi
     y = [['O', 'O', 'O', 'Bcity', 'Icity'], ['O', 'O', 'O', 'Bcity', 'Icity'],
-         ['Bdate', 'Iadate', 'O', 'O', 'O', 'O'],
+         ['Bdate', 'Idate', 'O', 'O', 'O', 'O'],
          ['Bdate', 'Idate', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O']] * multi
 
     print('samples:', len(x))
 
     tag = Tagger(
-        encoder_path='./encoders/zh-bert-wwm-L1/',
+        encoder_path='./encoders/zh-roberta-wwm-L1/',
         encoder_trainable=True)
 
     tag.fit(x, y, validation_data=(x, y), batch_size=2, epochs=2)
