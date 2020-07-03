@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from tfnlu.parser import Parser
+from tfnlu import Parser
 
 
 class TestParser(object):
@@ -42,8 +42,8 @@ class TestParser(object):
         ]
 
         par = Parser(
-            './encoders/zh-roberta-wwm-L1',
-            5, 5, 5, encoder_trainable=True)
+            None, 5, 5, 5
+        )
 
         par.fit(x, y0, y1, batch_size=2, epochs=2)
 

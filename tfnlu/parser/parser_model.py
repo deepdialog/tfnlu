@@ -1,5 +1,5 @@
 import tensorflow as tf
-import tensorflow_hub as hub
+from tfnlu.utils.encoder_model import get_encoder
 from .biaffine import Biaffine
 from .to_tokens import ToTokens
 from .pos_to_tokens import PosToTokens
@@ -34,11 +34,8 @@ class ParserModel(tf.keras.Model):
                  hidden_size=400,
                  **kwargs):
         super(ParserModel, self).__init__(**kwargs)
-        self.encoder_layer = hub.KerasLayer(
-            encoder_path,
-            trainable=encoder_trainable,
-            output_key='sequence_output'
-        )
+        self.encoder_layer = get_encoder(
+            encoder_path, encoder_trainable=encoder_trainable)
         self.masking = tf.keras.layers.Masking()
 
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
@@ -79,6 +76,9 @@ class ParserModel(tf.keras.Model):
         self.pos_proj = tf.keras.layers.Dense(len(pos_word_index))
 
         self.leaky_relu = tf.keras.layers.LeakyReLU(alpha=0.3)
+
+        self._set_inputs(
+            tf.keras.backend.placeholder((None, None), dtype='string'))
 
     def compute(self, inputs, training=False):
         """

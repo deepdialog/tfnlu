@@ -13,7 +13,7 @@ from .classification_model import ClassificationModel
 
 class Classification(TFNLUModel):
     def __init__(self,
-                 encoder_path,
+                 encoder_path=None,
                  encoder_trainable=False):
 
         super(Classification, self).__init__()
@@ -111,9 +111,6 @@ class Classification(TFNLUModel):
                 word_index=word_index,
                 index_word=index_word,
                 encoder_trainable=self.encoder_trainable)
-
-            self.model._set_inputs(
-                tf.keras.backend.placeholder((None, None), dtype='string'))
 
         self.model.compile(
             optimizer=(

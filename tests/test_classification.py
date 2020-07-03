@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from tfnlu.classification import Classification
+# import pickle
+from tfnlu import Classification
 
 
 class TestClassification(object):
@@ -16,9 +17,7 @@ class TestClassification(object):
         ] * multi
         y = ['A', 'A', 'B', 'B'] * multi
 
-        tag = Classification(
-            encoder_path='./encoders/zh-roberta-wwm-L1',
-            encoder_trainable=True)
+        tag = Classification()
 
         tag.fit(x, y, batch_size=2, epochs=2)
         tag.fit(x, y, batch_size=2, epochs=2)

@@ -1,6 +1,6 @@
 import tensorflow as tf
-import tensorflow_hub as hub
 
+from tfnlu.utils.encoder_model import get_encoder
 from .to_tags import ToTags
 from .to_tokens import ToTokens
 
@@ -32,11 +32,7 @@ class ClassificationModel(tf.keras.Model):
         self.encoder_trainable = encoder_trainable
         self.to_token = ToTokens(word_index)
         self.to_tags = ToTags(index_word)
-        self.encoder_layer = hub.KerasLayer(
-            encoder_path,
-            trainable=encoder_trainable,
-            output_key='sequence_output'
-        )
+        self.encoder_layer = get_encoder(encoder_path, encoder_trainable)
         self.masking = tf.keras.layers.Masking()
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
         if not self.encoder_trainable:
@@ -48,6 +44,9 @@ class ClassificationModel(tf.keras.Model):
                 self.rnn_layers.append(rnn)
             self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
+
+        self._set_inputs(
+            tf.keras.backend.placeholder((None, None), dtype='string'))
 
     def compute(self, inputs, training=False):
 

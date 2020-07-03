@@ -10,7 +10,7 @@ from .pos_get_tags import pos_get_tags
 
 class Parser(TFNLUModel):
     def __init__(self,
-                 encoder_path,
+                 encoder_path=None,
                  proj0_size=500,
                  proj1_size=100,
                  hidden_size=400,
@@ -49,8 +49,6 @@ class Parser(TFNLUModel):
                 index_word=index_word,
                 pos_word_index=pos_word_index,
                 pos_index_word=pos_index_word)
-            self.model._set_inputs(
-                tf.keras.backend.placeholder((None, None), dtype='string'))
 
         self.model.compile(optimizer=(
                 optimizer

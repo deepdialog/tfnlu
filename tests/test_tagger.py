@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from tfnlu.tagger import Tagger
+from tfnlu import Tagger
 
 
 class TestTagger(object):
@@ -16,8 +16,7 @@ class TestTagger(object):
              ['Bdate', 'Idate', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O']
              ] * multi
 
-        tag = Tagger(encoder_path='./encoders/zh-roberta-wwm-L1/',
-                     encoder_trainable=True)
+        tag = Tagger()
 
         tag.fit(x, y, validation_data=(x, y), batch_size=4, epochs=2)
 
