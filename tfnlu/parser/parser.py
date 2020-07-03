@@ -14,6 +14,7 @@ class Parser(TFNLUModel):
                  proj0_size=500,
                  proj1_size=100,
                  hidden_size=400,
+                 n_layers=3,
                  encoder_trainable=False):
 
         super(Parser, self).__init__()
@@ -22,6 +23,7 @@ class Parser(TFNLUModel):
         self.proj0_size = proj0_size
         self.proj1_size = proj1_size
         self.hidden_size = hidden_size
+        self.n_layers = n_layers
         self.encoder_trainable = encoder_trainable
         self.model = None
 
@@ -44,6 +46,7 @@ class Parser(TFNLUModel):
                 proj0_size=self.proj0_size,
                 proj1_size=self.proj1_size,
                 hidden_size=self.hidden_size,
+                n_layers=self.n_layers,
                 encoder_trainable=self.encoder_trainable,
                 word_index=word_index,
                 index_word=index_word,

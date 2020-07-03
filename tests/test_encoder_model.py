@@ -1,4 +1,7 @@
 
+import os
+import uuid
+import tempfile
 import tensorflow as tf
 from tfnlu.utils.encoder_model import UnicodeEncoder
 
@@ -17,8 +20,9 @@ class TestEncoderModel(object):
 
     def test_encoder_model_save_load(self):
         encoder = UnicodeEncoder(embedding_size=4)
-        encoder.save('./encoders/encoder_model')
-        encoder2 = tf.saved_model.load('./encoders/encoder_model')
+        path = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
+        encoder.save(path)
+        encoder2 = tf.saved_model.load(path)
         x = tf.ragged.constant([
             list('我爱你'),
             list('讨厌'),

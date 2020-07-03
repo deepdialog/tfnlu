@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+import os
+import uuid
+import pickle
+import tempfile
 from tfnlu import Tagger
 
 
 class TestTagger(object):
-
     def test_tagger(self):
         multi = 4
         x = [list(x)
@@ -24,3 +27,11 @@ class TestTagger(object):
 
         for i in range(4):
             assert len(pred[i]) == len(x[i])
+
+        model = tag
+        path = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
+        with open(path, 'wb') as fp:
+            pickle.dump(model, fp)
+        with open(path, 'rb') as fp:
+            model = pickle.load(fp)
+        assert model.predict(x) == pred
