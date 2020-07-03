@@ -162,7 +162,7 @@ class Tagger(TFNLUModel):
         for i in pbar:
             x_batch = x[i * batch_size:(i + 1) * batch_size]
             x_batch = [
-                ['[CLS]'] + xx + ['[SEP]']
+                ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]']
                 for xx in x_batch
             ]
             x_batch = tf.ragged.constant(x_batch).to_tensor()
