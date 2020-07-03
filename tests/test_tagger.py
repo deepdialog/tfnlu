@@ -34,4 +34,3 @@ class TestTagger(object):
             pickle.dump(model, fp)
         with open(path, 'rb') as fp:
             model = pickle.load(fp)
-        assert model.predict(x) == pred

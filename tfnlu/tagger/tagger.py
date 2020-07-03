@@ -98,7 +98,6 @@ class Tagger(TFNLUModel):
                 bucket_boundaries=bucket_boundaries
             )
         )
-        dataset = dataset.cache()
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset

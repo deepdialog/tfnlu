@@ -101,7 +101,6 @@ class Parser(TFNLUModel):
         ]
 
         dataset = tf.data.Dataset.zip((x_dataset, (y0_dataset, y1_dataset)))
-        dataset = dataset.cache()
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         for xb, _ in dataset.take(2):
