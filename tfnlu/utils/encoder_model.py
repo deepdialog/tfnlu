@@ -50,7 +50,7 @@ def get_encoder(encoder_path, encoder_trainable):
         logger.warn(
             'No encoder_path define, use default encoder, '
             'if you need better performance, '
-            'you could try download a BERT encoder from: ',
+            'you could try download a BERT encoder from: '
             'https://github.com/qhduan/bert-model'
         )
         return UnicodeEncoder()
