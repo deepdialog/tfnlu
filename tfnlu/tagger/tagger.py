@@ -9,6 +9,7 @@ from tfnlu.utils.tfnlu_model import TFNLUModel
 from tfnlu.utils.config import MAX_LENGTH, DEFAULT_BATCH_SIZE
 from .get_tags import get_tags
 from .tagger_model import TaggerModel
+from .tagger_pointer_model import TaggerPointerModel
 from .score_table import score_table
 from .check_validation import CheckValidation
 
@@ -110,18 +111,26 @@ class Tagger(TFNLUModel):
             shuffle=True,
             validation_data=None,
             save_best=None,
-            optimizer=None):
+            optimizer=None,
+            pointer=False):
         data = self.check_data(x, y, batch_size)
         if not self.model:
             logger.info('build model')
             word_index, index_word = get_tags(y)
             logger.info(f'tags count: {len(word_index)}')
             logger.info('build model')
-            self.model = TaggerModel(
-                encoder_path=self.encoder_path,
-                word_index=word_index,
-                index_word=index_word,
-                encoder_trainable=self.encoder_trainable)
+            if not pointer:
+                self.model = TaggerModel(
+                    encoder_path=self.encoder_path,
+                    word_index=word_index,
+                    index_word=index_word,
+                    encoder_trainable=self.encoder_trainable)
+            else:
+                self.model = TaggerPointerModel(
+                    encoder_path=self.encoder_path,
+                    word_index=word_index,
+                    index_word=index_word,
+                    encoder_trainable=self.encoder_trainable)
 
         self.model.compile(optimizer=(
             optimizer
@@ -172,4 +181,14 @@ class Tagger(TFNLUModel):
             ip[:len(ix)]
             for ip, ix in zip(pred, x)
         ]
+        for p in pred:
+            for i in reversed(range(len(p) - 1)):
+                t = p[i]
+                nt = p[i + 1]
+                if not t.startswith('B') and not t.startswith('I') and nt.startswith('I'):  # noqa
+                    p[i] = nt
+            for i in range(len(p)):
+                if p[i] == '':
+                    p[i] = 'O'
+
         return pred
