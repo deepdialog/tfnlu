@@ -132,10 +132,13 @@ class Tagger(TFNLUModel):
                     index_word=index_word,
                     encoder_trainable=self.encoder_trainable)
 
-        self.model.compile(optimizer=(
-            optimizer
-            if optimizer is not None
-            else tf.keras.optimizers.Adam(1e-4)))
+        if optimizer is None:
+            optimizer = (
+                tf.keras.optimizers.Adam(1e-5),
+                tf.keras.optimizers.Adam(1e-4)
+            )
+
+        self.model.compile(optimizer=optimizer)
 
         logger.info('check model predict')
         pred_data = self.check_data(x, y=None, batch_size=batch_size)
@@ -165,18 +168,29 @@ class Tagger(TFNLUModel):
         pbar = range(total_batch)
         if verbose:
             pbar = tqdm(pbar, file=sys.stdout)
+        max_length = max([len(xx) for xx in x])
+        max_length = min(MAX_LENGTH + 2, max_length)
+        # max_length = MAX_LENGTH + 2
         for i in pbar:
             x_batch = x[i * batch_size:(i + 1) * batch_size]
             x_batch = [
                 ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]']
                 for xx in x_batch
             ]
-            x_batch = tf.ragged.constant(x_batch).to_tensor()
-            p = self.model(x_batch)
-            pred += [
-                [token.decode('UTF-8') for token in sent]
-                for sent in p.numpy().tolist()
+            # 因为输入变量是不定长的字符串list
+            # 如果不对齐的话，tensorflow会尝试构造、跟踪多个graph
+            x_batch = [
+                xx + [''] * (max_length - len(xx))
+                for xx in x_batch
             ]
+            x_batch = tf.ragged.constant(x_batch).to_tensor()
+            p = self.model.predict_on_batch(x_batch)
+            for item in p:
+                pred.append(item)
+        pred = [
+            [token.decode('UTF-8') for token in sent.tolist()]
+            for sent in pred
+        ]
         pred = [
             ip[:len(ix)]
             for ip, ix in zip(pred, x)

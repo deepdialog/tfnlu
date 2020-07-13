@@ -59,7 +59,7 @@ class TaggerModel(tf.keras.Model):
 
         for rnn in self.rnn_layers:
             x = rnn(x, training=training)
-            x = self.norm_layer(x, training=training)
+        x = self.norm_layer(x, training=training)
 
         x = self.project_layer(x, training=training)
         return x, lengths
@@ -83,8 +83,16 @@ class TaggerModel(tf.keras.Model):
                             transition_params=transition_params,
                             lengths=lengths)
         gradients = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(
-            zip(gradients, self.trainable_variables))
+
+        encoder_layers = len(self.encoder_layer.trainable_variables)
+        self.optimizer[0].apply_gradients(
+            zip(gradients[:encoder_layers],
+                self.trainable_variables[:encoder_layers])
+        )
+        self.optimizer[1].apply_gradients(
+            zip(gradients[encoder_layers:],
+                self.trainable_variables[encoder_layers:])
+        )
 
         ret = {
             m.name: m.result() for m in self.metrics
