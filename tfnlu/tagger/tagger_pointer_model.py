@@ -33,12 +33,13 @@ class TaggerPointerModel(tf.keras.Model):
         self.encoder_layer = get_encoder(encoder_path, encoder_trainable)
         self.masking = tf.keras.layers.Masking()
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
-        # self.rnn_layers = []
-        # for _ in range(n_layers):
-        #     rnn = tf.keras.layers.Bidirectional(
-        #         tf.keras.layers.LSTM(hidden_size,
-        #                              return_sequences=True))
-        #     self.rnn_layers.append(rnn)
+
+        self.rnn_layers = []
+        for _ in range(n_layers):
+            rnn = tf.keras.layers.Bidirectional(
+                tf.keras.layers.LSTM(hidden_size,
+                                     return_sequences=True))
+            self.rnn_layers.append(rnn)
 
         b_keys = sorted([
             x for x in word_index.keys()
@@ -52,8 +53,8 @@ class TaggerPointerModel(tf.keras.Model):
 
         self.project_hidden_layers = []
         self.norm_layers = []
-        # 3 layers hidden
-        for _ in range(3):
+        # 2 layers hidden
+        for _ in range(2):
             layers = []
             norm_layers = []
             for _ in range(len(b_keys)):
@@ -66,11 +67,11 @@ class TaggerPointerModel(tf.keras.Model):
 
         self.project_begin_layers = []
         for _ in range(len(b_keys)):
-            self.project_begin_layers.append(tf.keras.layers.Dense(1))
+            self.project_begin_layers.append(tf.keras.layers.Dense(2))
 
         self.project_end_layers = []
         for _ in range(len(i_keys)):
-            self.project_end_layers.append(tf.keras.layers.Dense(1))
+            self.project_end_layers.append(tf.keras.layers.Dense(2))
 
         self._set_inputs(
             tf.keras.backend.placeholder((None, None), dtype='string'))
@@ -82,6 +83,9 @@ class TaggerPointerModel(tf.keras.Model):
         x = self.encoder_layer(x, training=training)
         x = self.masking(x, training=training)
         x = self.dropout_layer(x, training=training)
+
+        for rnn in self.rnn_layers:
+            x = rnn(x, training=training)
 
         hiddens = [
             norm(layer(x))
@@ -110,15 +114,17 @@ class TaggerPointerModel(tf.keras.Model):
             ret.append(layer(z))
 
         ret = tf.stack(ret)
-        ret = tf.nn.sigmoid(ret)
-        ret = tf.squeeze(ret, -1)
+        # ret = tf.nn.sigmoid(ret)
+        # ret = tf.squeeze(ret, -1)
         lengths = get_lengths(inputs)
         return ret, lengths
 
     @tf.function(experimental_relax_shapes=True)
     def call(self, inputs, training=False):
         x, _ = self.compute(inputs, training=training)
-        x = tf.cast(x > 0.5, tf.int32)
+        # x = tf.cast(x > 0.5, tf.int32)
+        x = tf.math.argmax(x, axis=-1)
+        x = tf.cast(x, tf.int32)
         return self.to_tags(x)[:, 1:-1]
 
     def train_step(self, data):
@@ -126,8 +132,8 @@ class TaggerPointerModel(tf.keras.Model):
         yseq = self.to_token(y)
         with tf.GradientTape() as tape:
             logits, lengths = self.compute(x, training=True)
-            loss = tf.keras.backend.binary_crossentropy(
-                target=yseq, output=logits, from_logits=False
+            loss = tf.keras.backend.sparse_categorical_crossentropy(
+                target=yseq, output=logits, from_logits=True
             )
             mask = tf.sequence_mask(lengths)
             mask = tf.expand_dims(mask, 0)
@@ -137,6 +143,7 @@ class TaggerPointerModel(tf.keras.Model):
             loss = tf.reduce_sum(loss, -1)
             loss = tf.reduce_sum(loss, 0)
             loss = tf.reduce_sum(loss)
+
         gradients = tape.gradient(loss, self.trainable_variables)
         encoder_layers = len(self.encoder_layer.trainable_variables)
         self.optimizer[0].apply_gradients(
