@@ -145,15 +145,21 @@ class TaggerPointerModel(tf.keras.Model):
             loss = tf.reduce_sum(loss)
 
         gradients = tape.gradient(loss, self.trainable_variables)
+
         encoder_layers = len(self.encoder_layer.trainable_variables)
-        self.optimizer[0].apply_gradients(
-            zip(gradients[:encoder_layers],
-                self.trainable_variables[:encoder_layers])
-        )
-        self.optimizer[1].apply_gradients(
-            zip(gradients[encoder_layers:],
-                self.trainable_variables[encoder_layers:])
-        )
+        if hasattr(self, 'optimizer_encoder'):
+            self.optimizer_encoder.apply_gradients(
+                zip(gradients[:encoder_layers],
+                    self.trainable_variables[:encoder_layers])
+            )
+            self.optimizer.apply_gradients(
+                zip(gradients[encoder_layers:],
+                    self.trainable_variables[encoder_layers:])
+            )
+        else:
+            self.optimizer.apply_gradients(
+                zip(gradients, self.trainable_variables)
+            )
 
         ret = {
             m.name: m.result() for m in self.metrics

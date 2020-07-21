@@ -98,7 +98,8 @@ class Classification(TFNLUModel):
             shuffle=True,
             validation_data=None,
             save_best=None,
-            optimizer=None):
+            optimizer=None,
+            optimizer_encoder=None):
         data = self.check_data(x, y, batch_size)
         if not self.model:
             logger.info('build model')
@@ -111,11 +112,15 @@ class Classification(TFNLUModel):
                 index_word=index_word,
                 encoder_trainable=self.encoder_trainable)
 
+        if optimizer is None:
+            optimizer = tf.keras.optimizers.Adam(1e-4)
+
+        if optimizer_encoder is None:
+            optimizer_encoder = tf.keras.optimizers.Adam(1e-5)
+
+        self.model.optimizer_encoder = optimizer_encoder
         self.model.compile(
-            optimizer=(
-                optimizer
-                if optimizer is not None
-                else tf.keras.optimizers.Adam(1e-4)),
+            optimizer=optimizer,
             metrics=['acc']
         )
 

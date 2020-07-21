@@ -83,8 +83,21 @@ class ClassificationModel(tf.keras.Model):
                 logits=logits
             )
         gradients = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(
-            zip(gradients, self.trainable_variables))
+
+        encoder_layers = len(self.encoder_layer.trainable_variables)
+        if hasattr(self, 'optimizer_encoder'):
+            self.optimizer_encoder.apply_gradients(
+                zip(gradients[:encoder_layers],
+                    self.trainable_variables[:encoder_layers])
+            )
+            self.optimizer.apply_gradients(
+                zip(gradients[encoder_layers:],
+                    self.trainable_variables[encoder_layers:])
+            )
+        else:
+            self.optimizer.apply_gradients(
+                zip(gradients, self.trainable_variables)
+            )
 
         self.compiled_metrics.update_state(y, tags_id)
         ret = {

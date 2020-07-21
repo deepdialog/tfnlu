@@ -112,6 +112,7 @@ class Tagger(TFNLUModel):
             validation_data=None,
             save_best=None,
             optimizer=None,
+            optimizer_encoder=None,
             pointer=False):
         data = self.check_data(x, y, batch_size)
         if not self.model:
@@ -133,11 +134,12 @@ class Tagger(TFNLUModel):
                     encoder_trainable=self.encoder_trainable)
 
         if optimizer is None:
-            optimizer = (
-                tf.keras.optimizers.Adam(1e-5),
-                tf.keras.optimizers.Adam(1e-4)
-            )
+            optimizer = tf.keras.optimizers.Adam(1e-4)
 
+        if optimizer_encoder is None:
+            optimizer_encoder = tf.keras.optimizers.Adam(1e-5)
+
+        self.model.optimizer_encoder = optimizer_encoder
         self.model.compile(optimizer=optimizer)
 
         logger.info('check model predict')
@@ -168,9 +170,9 @@ class Tagger(TFNLUModel):
         pbar = range(total_batch)
         if verbose:
             pbar = tqdm(pbar, file=sys.stdout)
-        max_length = max([len(xx) for xx in x])
-        max_length = min(MAX_LENGTH + 2, max_length)
-        # max_length = MAX_LENGTH + 2
+        # max_length = max([len(xx) for xx in x])
+        # max_length = min(MAX_LENGTH + 2, max_length)
+        max_length = MAX_LENGTH + 2
         for i in pbar:
             x_batch = x[i * batch_size:(i + 1) * batch_size]
             x_batch = [
