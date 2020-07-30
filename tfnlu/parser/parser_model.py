@@ -148,7 +148,8 @@ class ParserModel(tf.keras.Model):
         z = rel[:, :1]
         z = z * tf.cast(
             z >= tf.expand_dims(tf.math.reduce_max(z, -1), 1),
-            z.dtype)
+            z.dtype
+        )
         z = tf.concat([z, rel[:, 1:]], axis=1)
         rel = z
 
@@ -156,8 +157,14 @@ class ParserModel(tf.keras.Model):
         max_2 = tf.math.reduce_max(rel, axis=1)
         z = tf.cast(
             rel >= tf.expand_dims(max_2, 1),
-            arc.dtype)
-        arc *= tf.expand_dims(z, -1)
+            arc.dtype
+        )
+        z = tf.expand_dims(z, -1)
+        arc = tf.concat([
+            tf.zeros_like(arc[:, :, :, :1]) - 999999.,
+            arc[:, :, :, 1:]
+        ], axis=-1)
+        arc *= z
         arc = tf.argmax(arc, -1)
 
         arc = self.to_tags(arc)
