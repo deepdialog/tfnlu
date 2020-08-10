@@ -23,10 +23,11 @@ class TaggerModel(tf.keras.Model):
                  encoder_path,
                  word_index,
                  index_word,
-                 encoder_trainable=False,
-                 hidden_size=768,
-                 dropout=.25,
-                 n_layers=1,
+                 encoder_trainable,
+                 hidden_size,
+                 dropout,
+                 n_layers,
+                 rnn,
                  **kwargs):
         super(TaggerModel, self).__init__(**kwargs)
         self.to_token = ToTokens(word_index)
@@ -36,10 +37,10 @@ class TaggerModel(tf.keras.Model):
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
         self.rnn_layers = []
         for _ in range(n_layers):
-            rnn = tf.keras.layers.Bidirectional(
-                tf.keras.layers.LSTM(hidden_size,
-                                     return_sequences=True))
-            self.rnn_layers.append(rnn)
+            rnn_layer = tf.keras.layers.Bidirectional(
+                rnn(hidden_size,
+                    return_sequences=True))
+            self.rnn_layers.append(rnn_layer)
         self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
         self.crf_layer = CRF(len(word_index))

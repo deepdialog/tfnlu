@@ -17,12 +17,20 @@ from .check_validation import CheckValidation
 class Tagger(TFNLUModel):
     def __init__(self,
                  encoder_path=None,
-                 encoder_trainable=False):
+                 encoder_trainable=False,
+                 hidden_size=400,
+                 dropout=0.0,
+                 n_layers=1,
+                 rnn=tf.keras.layers.LSTM):
 
         super(Tagger, self).__init__()
 
         self.encoder_path = encoder_path
         self.encoder_trainable = encoder_trainable
+        self.hidden_size = hidden_size
+        self.dropout = dropout
+        self.n_layers = n_layers
+        self.rnn = rnn
 
         self.model = None
         self.word_index = None
@@ -123,6 +131,10 @@ class Tagger(TFNLUModel):
             if not pointer:
                 self.model = TaggerModel(
                     encoder_path=self.encoder_path,
+                    hidden_size=self.hidden_size,
+                    dropout=self.dropout,
+                    n_layers=self.n_layers,
+                    rnn=self.rnn,
                     word_index=word_index,
                     index_word=index_word,
                     encoder_trainable=self.encoder_trainable)
