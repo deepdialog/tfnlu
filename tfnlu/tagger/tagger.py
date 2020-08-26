@@ -182,9 +182,8 @@ class Tagger(TFNLUModel):
         pbar = range(total_batch)
         if verbose:
             pbar = tqdm(pbar, file=sys.stdout)
-        # max_length = max([len(xx) for xx in x])
-        # max_length = min(MAX_LENGTH + 2, max_length)
-        max_length = MAX_LENGTH + 2
+
+        # max_length = MAX_LENGTH + 2
         for i in pbar:
             x_batch = x[i * batch_size:(i + 1) * batch_size]
             x_batch = [
@@ -193,6 +192,14 @@ class Tagger(TFNLUModel):
             ]
             # 因为输入变量是不定长的字符串list
             # 如果不对齐的话，tensorflow会尝试构造、跟踪多个graph
+
+            max_length = max([len(xx) for xx in x_batch])
+            max_length = min(MAX_LENGTH + 2, max_length)
+            for i in range(32, 512 + 1, 32):
+                if max_length <= i:
+                    max_length = i
+                    break
+
             x_batch = [
                 xx + [''] * (max_length - len(xx))
                 for xx in x_batch
