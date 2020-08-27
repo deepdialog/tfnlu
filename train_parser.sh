@@ -1,0 +1,45 @@
+
+#!/bin/bash
+
+python train_parser.py 0
+python train_parser.py 5
+python train_parser.py 10
+python train_parser.py 15
+python train_parser.py 20
+python train_parser.py 25
+python train_parser.py 30
+python train_parser.py 35
+python train_parser.py 40
+python train_parser.py 45
+python train_parser.py 50
+python train_parser.py 55
+python train_parser.py 60
+python train_parser.py 65
+python train_parser.py 70
+python train_parser.py 75
+python train_parser.py 80
+python train_parser.py 85
+python train_parser.py 90
+python train_parser.py 95
+python train_parser.py 100
+python train_parser.py 105
+python train_parser.py 110
+python train_parser.py 115
+python train_parser.py 120
+python train_parser.py 125
+python train_parser.py 130
+python train_parser.py 135
+python train_parser.py 140
+python train_parser.py 145
+python train_parser.py 150
+python train_parser.py 155
+python train_parser.py 160
+python train_parser.py 165
+python train_parser.py 170
+python train_parser.py 175
+python train_parser.py 180
+python train_parser.py 185
+python train_parser.py 190
+python train_parser.py 195
+python train_parser.py 200
+python train_parser.py 205
