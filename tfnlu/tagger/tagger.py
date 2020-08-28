@@ -17,10 +17,11 @@ from .check_validation import CheckValidation
 class Tagger(TFNLUModel):
     def __init__(self,
                  encoder_path=None,
-                 encoder_trainable=False,
+                 encoder_trainable=True,
                  hidden_size=400,
                  dropout=0.0,
-                 n_layers=1,
+                 n_layers=0,  # rnn layers
+                 n_additional_features=0,
                  rnn=tf.keras.layers.LSTM):
 
         super(Tagger, self).__init__()
@@ -30,6 +31,7 @@ class Tagger(TFNLUModel):
         self.hidden_size = hidden_size
         self.dropout = dropout
         self.n_layers = n_layers
+        self.n_additional_features = n_additional_features
         self.rnn = rnn
 
         self.model = None
@@ -134,6 +136,7 @@ class Tagger(TFNLUModel):
                     hidden_size=self.hidden_size,
                     dropout=self.dropout,
                     n_layers=self.n_layers,
+                    n_additional_features=self.n_additional_features,
                     rnn=self.rnn,
                     word_index=word_index,
                     index_word=index_word,

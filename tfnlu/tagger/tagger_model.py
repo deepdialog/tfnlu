@@ -17,6 +17,19 @@ def get_lengths(x):
     )
 
 
+@tf.function
+def additional_features(input_strs, logits, start=0):
+    x = input_strs
+    x = tf.cast(x == tf.constant('[SEP]'), tf.int32)
+    x = tf.cast(tf.cumsum(x, axis=1, exclusive=True) == start, tf.float32)
+    x = tf.expand_dims(x, 2)
+    x = logits * x
+    x = tf.math.reduce_sum(x, axis=1, keepdims=True)
+    x = tf.tile(x, [1, tf.shape(logits)[1], 1])
+    x = tf.concat([logits, x], -1)
+    return x
+
+
 class TaggerModel(tf.keras.Model):
 
     def __init__(self,
@@ -28,6 +41,7 @@ class TaggerModel(tf.keras.Model):
                  dropout,
                  n_layers,
                  rnn,
+                 n_additional_features,
                  **kwargs):
         super(TaggerModel, self).__init__(**kwargs)
         self.to_token = ToTokens(word_index)
@@ -35,13 +49,13 @@ class TaggerModel(tf.keras.Model):
         self.encoder_layer = get_encoder(encoder_path, encoder_trainable)
         self.masking = tf.keras.layers.Masking()
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
+        self.n_additional_features = n_additional_features
         self.rnn_layers = []
         for _ in range(n_layers):
             rnn_layer = tf.keras.layers.Bidirectional(
                 rnn(hidden_size,
                     return_sequences=True))
             self.rnn_layers.append(rnn_layer)
-        self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
         self.crf_layer = CRF(len(word_index))
 
@@ -60,7 +74,9 @@ class TaggerModel(tf.keras.Model):
 
         for rnn in self.rnn_layers:
             x = rnn(x, training=training)
-        x = self.norm_layer(x, training=training)
+
+        for na in range(self.n_additional_features):
+            x = additional_features(inputs, x, na + 1)
 
         x = self.project_layer(x, training=training)
         return x, lengths
