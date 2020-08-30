@@ -45,7 +45,6 @@ def get_encoder(encoder_path, encoder_trainable):
             raise RuntimeError('No encoder_path found')
         return hub.KerasLayer(encoder_path,
                               trainable=encoder_trainable,
-                              signature='serving_default',
                               output_key='sequence_output')
     else:
         logger.warn(

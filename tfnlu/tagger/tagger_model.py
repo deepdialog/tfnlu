@@ -66,7 +66,7 @@ class TaggerModel(tf.keras.Model):
 
         x = inputs
 
-        x = self.encoder_layer(x, training=training)
+        x = self.encoder_layer(x)
         x = self.masking(x, training=training)
         x = self.dropout_layer(x, training=training)
 
