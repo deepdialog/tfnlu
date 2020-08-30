@@ -10,7 +10,7 @@ class CRF(tf.keras.layers.Layer):
     def build(self, input_shape):
 
         self.transition_params = self.add_weight(
-            initializer=tf.keras.initializers.glorot_uniform(),
+            initializer=tf.keras.initializers.truncated_normal(stddev=0.02),
             shape=(self.tag_size, self.tag_size),
             dtype=tf.keras.backend.floatx(),
             name='crf/transition_params')

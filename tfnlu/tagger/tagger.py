@@ -149,10 +149,20 @@ class Tagger(TFNLUModel):
                     encoder_trainable=self.encoder_trainable)
 
         if optimizer is None:
-            optimizer = tf.keras.optimizers.Adam(1e-4)
+            optimizer = tf.optimizers.Adam(
+                learning_rate=3e-2,
+                beta_1=0.9,
+                beta_2=0.999,
+                epsilon=1e-6,
+                clipnorm=1.0)
 
         if optimizer_encoder is None:
-            optimizer_encoder = tf.keras.optimizers.Adam(1e-5)
+            optimizer = tf.optimizers.Adam(
+                learning_rate=3e-5,
+                beta_1=0.9,
+                beta_2=0.999,
+                epsilon=1e-6,
+                clipnorm=1.0)
 
         self.model.optimizer_encoder = optimizer_encoder
         self.model.compile(optimizer=optimizer)
