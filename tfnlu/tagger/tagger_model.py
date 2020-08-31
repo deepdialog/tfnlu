@@ -21,7 +21,7 @@ def additional_features(input_strs, logits, start=0):
     x = logits * x
     x = tf.math.reduce_sum(x, axis=1, keepdims=True)
     x = tf.tile(x, [1, tf.shape(logits)[1], 1])
-    x = tf.concat([logits, x], -1)
+    # x = tf.concat([logits, x], -1)
     return x
 
 
@@ -60,8 +60,13 @@ class TaggerModel(tf.keras.Model):
         for rnn in self.rnn_layers:
             x = rnn(x, training=training)
 
-        for na in range(self.n_additional_features):
-            x = additional_features(inputs, x, na + 1)
+        if self.n_additional_features > 0:
+            add_features = [x]
+            for na in range(self.n_additional_features):
+                add_features.append(
+                    additional_features(inputs, x, na + 1)
+                )
+            x = tf.concat(add_features, -1)
 
         x = self.project_layer(x, training=training)
         return x, lengths
