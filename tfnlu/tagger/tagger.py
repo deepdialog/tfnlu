@@ -101,7 +101,9 @@ class Tagger(TFNLUModel):
             return tf.size(x)
 
         dataset = tf.data.Dataset.from_generator(**_make_gen(x, y))
-        bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
+        bucket_size = 5
+        bucket_boundaries = list(range(
+            MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
         dataset = dataset.apply(
             tf.data.experimental.bucket_by_sequence_length(
                 size_xy if y is not None else size_x,
@@ -109,6 +111,7 @@ class Tagger(TFNLUModel):
                 bucket_boundaries=bucket_boundaries
             )
         )
+        dataset = dataset.shuffle(20, reshuffle_each_iteration=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
@@ -150,18 +153,12 @@ class Tagger(TFNLUModel):
 
         if optimizer is None:
             optimizer = tf.optimizers.Adam(
-                learning_rate=3e-2,
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-6,
+                learning_rate=1e-3,
                 clipnorm=1.0)
 
         if optimizer_encoder is None:
-            optimizer = tf.optimizers.Adam(
-                learning_rate=3e-5,
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-6,
+            optimizer_encoder = tf.optimizers.Adam(
+                learning_rate=1e-5,
                 clipnorm=1.0)
 
         self.model.optimizer_encoder = optimizer_encoder

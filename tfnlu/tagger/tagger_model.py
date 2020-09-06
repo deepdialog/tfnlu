@@ -17,11 +17,14 @@ def additional_features(input_strs, logits, start=0):
     x = input_strs
     x = tf.cast(x == tf.constant('[SEP]'), tf.int32)
     x = tf.cast(tf.cumsum(x, axis=1, exclusive=True) == start, tf.float32)
-    x = tf.expand_dims(x, 2)
-    x = logits * x
-    x = tf.math.reduce_sum(x, axis=1, keepdims=True)
+    mask = tf.expand_dims(x, 2)
+    x = logits * mask
+    x = tf.reduce_sum(
+        x, axis=1, keepdims=True
+    ) / tf.reduce_sum(
+        mask, axis=1, keepdims=True
+    )
     x = tf.tile(x, [1, tf.shape(logits)[1], 1])
-    # x = tf.concat([logits, x], -1)
     return x
 
 
