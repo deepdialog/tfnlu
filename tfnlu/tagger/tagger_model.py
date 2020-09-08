@@ -31,6 +31,7 @@ def additional_features(input_strs, logits, start=0):
 class TaggerModel(tf.keras.Model):
     def __init__(self, encoder_path, word_index, index_word, encoder_trainable,
                  hidden_size, dropout, n_layers, rnn, n_additional_features,
+                 bidirection=True,
                  **kwargs):
         super(TaggerModel, self).__init__(**kwargs)
         self.to_token = ToTokens(word_index)
@@ -41,8 +42,9 @@ class TaggerModel(tf.keras.Model):
         self.n_additional_features = n_additional_features
         self.rnn_layers = []
         for _ in range(n_layers):
-            rnn_layer = tf.keras.layers.Bidirectional(
-                rnn(hidden_size, return_sequences=True))
+            rnn_layer = rnn(hidden_size, return_sequences=True)
+            if bidirection:
+                rnn_layer = tf.keras.layers.Bidirectional(rnn_layer)
             self.rnn_layers.append(rnn_layer)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
         self.crf_layer = CRF(len(word_index))

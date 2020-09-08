@@ -29,6 +29,8 @@ class ParserModel(tf.keras.Model):
                  word_index, index_word,
                  pos_word_index, pos_index_word,
                  encoder_trainable=False,
+                 rnn=tf.keras.layers.LSTM,
+                 bidirection=True,
                  dropout=0.33,
                  n_layers=3,
                  hidden_size=400,
@@ -42,22 +44,21 @@ class ParserModel(tf.keras.Model):
 
         self.rnn_layers0 = []
         for _ in range(n_layers):
-            rnn = tf.keras.layers.Bidirectional(
-                tf.keras.layers.LSTM(hidden_size,
-                                     return_sequences=True))
-            self.rnn_layers0.append(rnn)
+            rnn_layer = rnn(hidden_size, return_sequences=True)
+            if bidirection:
+                rnn_layer = tf.keras.layers.Bidirectional(rnn_layer)
+            self.rnn_layers0.append(rnn_layer)
 
         self.rnn_layers1 = []
         for _ in range(n_layers):
-            rnn = tf.keras.layers.Bidirectional(
-                tf.keras.layers.LSTM(hidden_size,
-                                     return_sequences=True))
-            self.rnn_layers1.append(rnn)
-
-        self.norm_layer = tf.keras.layers.LayerNormalization(epsilon=1e-9)
+            rnn_layer = rnn(hidden_size, return_sequences=True)
+            if bidirection:
+                rnn_layer = tf.keras.layers.Bidirectional(rnn_layer)
+            self.rnn_layers1.append(rnn_layer)
 
         self.dep_mlp = tf.keras.layers.Dense(hidden_size)
         self.dep_concat = tf.keras.layers.Concatenate(axis=-1)
+        self.dep_proj = tf.keras.layers.Dense(hidden_size)
 
         self.ph0 = tf.keras.layers.Dense(proj0_size)
         self.pd0 = tf.keras.layers.Dense(proj0_size)
@@ -93,7 +94,6 @@ class ParserModel(tf.keras.Model):
 
         for rnn in self.rnn_layers0:
             x = rnn(x, training=training)
-            x = self.norm_layer(x)
 
         pos = x
         pos = self.pos_mlp(pos)
@@ -103,10 +103,10 @@ class ParserModel(tf.keras.Model):
         x = self.dep_mlp(x)
         x = self.leaky_relu(x)
         x = self.dep_concat([encoder_out, x])
+        x = self.dep_proj(x)
 
         for rnn in self.rnn_layers1:
             x = rnn(x, training=training)
-            x = self.norm_layer(x)
 
         # t0: [batch_size, lengths, lengths, tag0_size]
         t0 = self.b0([
@@ -140,7 +140,7 @@ class ParserModel(tf.keras.Model):
         """
         arc, rel, pos = self.compute(inputs, training=training)
 
-        # 避免维度相同
+        # 避免相同
         rel += tf.random.uniform(tf.shape(rel), minval=0.0, maxval=1e-12)
         arc += tf.random.uniform(tf.shape(arc), minval=0.0, maxval=1e-12)
 

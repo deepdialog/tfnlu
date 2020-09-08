@@ -16,7 +16,9 @@ class Parser(TFNLUModel):
                  proj1_size=100,
                  hidden_size=400,
                  n_layers=3,
-                 encoder_trainable=False):
+                 encoder_trainable=False,
+                 rnn=tf.keras.layers.LSTM,
+                 bidirection=True,):
 
         super(Parser, self).__init__()
 
@@ -26,6 +28,8 @@ class Parser(TFNLUModel):
         self.hidden_size = hidden_size
         self.n_layers = n_layers
         self.encoder_trainable = encoder_trainable
+        self.rnn = rnn
+        self.bidirection = bidirection
         self.model = None
 
     def fit(self,
@@ -52,15 +56,22 @@ class Parser(TFNLUModel):
                 word_index=word_index,
                 index_word=index_word,
                 pos_word_index=pos_word_index,
-                pos_index_word=pos_index_word)
+                pos_index_word=pos_index_word,
+                rnn=self.rnn,
+                bidirection=self.bidirection)
 
         if build_only:
             return
 
         if optimizer is None:
-            optimizer = tf.keras.optimizers.Adam(1e-4)
+            optimizer = tf.optimizers.Adam(
+                learning_rate=1e-3,
+                clipnorm=1.0)
+
         if optimizer_encoder is None:
-            optimizer_encoder = tf.keras.optimizers.Adam(1e-5)
+            optimizer_encoder = tf.optimizers.Adam(
+                learning_rate=1e-5,
+                clipnorm=1.0)
 
         self.model.optimizer_encoder = optimizer_encoder
         self.model.compile(optimizer=optimizer)
@@ -91,7 +102,9 @@ class Parser(TFNLUModel):
             tf.TensorShape([None, ])
         )
 
-        bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
+        bucket_size = 5
+        bucket_boundaries = list(range(
+            MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
         bucket_batch_sizes = [batch_size] * (len(bucket_boundaries) + 1)
         x_dataset, y0_dataset, y1_dataset = [
             dataset.apply(
@@ -112,6 +125,7 @@ class Parser(TFNLUModel):
         ]
 
         dataset = tf.data.Dataset.zip((x_dataset, (y0_dataset, y1_dataset)))
+        dataset = dataset.shuffle(20, reshuffle_each_iteration=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         for xb, (y0b, y1b) in dataset.take(2):
@@ -120,7 +134,7 @@ class Parser(TFNLUModel):
         self.model.fit(dataset, epochs=epochs)
         dataset = None
 
-    def predict(self, x, batch_size=32):
+    def predict(self, x, batch_size=DEFAULT_BATCH_SIZE):
         assert self.model is not None, 'model not fit or load'
         assert hasattr(x, '__len__'), 'X should be a list/np.array'
         assert len(x) > 0, 'len(X) should more than 0'
