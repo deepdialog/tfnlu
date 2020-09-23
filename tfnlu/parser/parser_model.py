@@ -185,7 +185,7 @@ class ParserModel(tf.keras.Model):
         )
         with tf.GradientTape() as tape:
             p_arc, p_rel, p_pos = self.compute(x, training=True)
-            l0 = parser_loss(y_arc, p_arc, lengths)
+            l0 = parser_loss(y_arc, p_arc)
             l1 = parser_loss_bin(y_rel, p_rel, lengths)
             l2 = parser_loss_pos(y_pos, p_pos, lengths)
             loss = l0 + l1 + l2
@@ -216,14 +216,11 @@ class ParserModel(tf.keras.Model):
         return ret
 
 
-def parser_loss(y_true, y_pred, lengths):
-    mask = tf.sequence_mask(lengths)
-    mask = tf.cast(mask, tf.float32)
-    mask = tf.expand_dims(mask, 1)
-    mask = tf.transpose(mask, (0, 2, 1)) @ mask
+def parser_loss(y_true, y_pred):
+    mask = tf.math.greater(y_true, 0)
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred)
-    loss *= tf.cast(mask, loss.dtype)
-    loss = tf.reduce_sum(loss) / tf.cast(tf.reduce_sum(mask), loss.dtype)
+    loss = tf.boolean_mask(loss, mask)
+    loss = tf.reduce_mean(loss)
     return loss
 
 
@@ -233,15 +230,14 @@ def parser_loss_bin(y_true, y_pred, lengths):
     mask = tf.expand_dims(mask, 1)
     mask = tf.transpose(mask, (0, 2, 1)) @ mask
     loss = tf.keras.backend.binary_crossentropy(y_true, y_pred)
-    loss *= mask
-    loss = tf.reduce_sum(loss) / tf.cast(tf.reduce_sum(mask), loss.dtype)
+    loss = tf.boolean_mask(loss, mask)
+    loss = tf.reduce_mean(loss) * tf.cast(tf.shape(y_pred)[0], tf.float32)
     return loss
 
 
 def parser_loss_pos(y_true, y_pred, lengths):
     mask = tf.sequence_mask(lengths)
-    mask = tf.cast(mask, tf.float32)
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_true, y_pred)
-    loss *= mask
-    loss = tf.reduce_sum(loss) / tf.reduce_sum(mask)
+    loss = tf.boolean_mask(loss, mask)
+    loss = tf.reduce_mean(loss)
     return loss

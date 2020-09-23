@@ -18,7 +18,7 @@ class Tagger(TFNLUModel):
     def __init__(self,
                  encoder_path=None,
                  encoder_trainable=True,
-                 hidden_size=400,
+                 hidden_size=400,  # hidden for rnn layers
                  dropout=0.0,
                  n_layers=0,  # rnn layers
                  n_additional_features=0,
@@ -154,15 +154,17 @@ class Tagger(TFNLUModel):
                     index_word=index_word,
                     encoder_trainable=self.encoder_trainable)
 
-        if optimizer is None:
+        if optimizer is None and optimizer_encoder is None:
             optimizer = tf.optimizers.Adam(
                 learning_rate=1e-3,
                 clipnorm=1.0)
-
-        if optimizer_encoder is None:
             optimizer_encoder = tf.optimizers.Adam(
                 learning_rate=1e-5,
                 clipnorm=1.0)
+        elif optimizer_encoder is None:
+            optimizer_encoder = optimizer
+        elif optimizer is None:
+            optimizer = optimizer_encoder
 
         self.model.optimizer_encoder = optimizer_encoder
         self.model.compile(optimizer=optimizer)

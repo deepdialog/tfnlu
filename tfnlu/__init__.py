@@ -11,5 +11,6 @@ __version__ = open(VERSION_FILE).read().strip()
 
 __all__ = [
     'Parser', 'Tagger', 'Classification', 'TempDir', 'serialize_dir',
-    'deserialize_dir', 'Transformer', '__version__'
+    'deserialize_dir', 'Transformer',
+    '__version__'
 ]
