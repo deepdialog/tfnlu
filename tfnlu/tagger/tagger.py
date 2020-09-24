@@ -23,7 +23,8 @@ class Tagger(TFNLUModel):
                  n_layers=0,  # rnn layers
                  n_additional_features=0,
                  rnn=tf.keras.layers.LSTM,
-                 bidirection=True):
+                 bidirection=True,
+                 use_crf=True):
 
         super(Tagger, self).__init__()
 
@@ -35,6 +36,7 @@ class Tagger(TFNLUModel):
         self.n_additional_features = n_additional_features
         self.rnn = rnn
         self.bidirection = bidirection
+        self.use_crf = use_crf
 
         self.model = None
         self.word_index = None
@@ -146,7 +148,8 @@ class Tagger(TFNLUModel):
                     word_index=word_index,
                     index_word=index_word,
                     encoder_trainable=self.encoder_trainable,
-                    bidirection=self.bidirection)
+                    bidirection=self.bidirection,
+                    use_crf=self.use_crf)
             else:
                 self.model = TaggerPointerModel(
                     encoder_path=self.encoder_path,

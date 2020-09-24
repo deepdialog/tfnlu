@@ -31,7 +31,7 @@ def additional_features(input_strs, logits, start=0):
 class TaggerModel(tf.keras.Model):
     def __init__(self, encoder_path, word_index, index_word, encoder_trainable,
                  hidden_size, dropout, n_layers, rnn, n_additional_features,
-                 bidirection=True,
+                 bidirection=True, use_crf=True,
                  **kwargs):
         super(TaggerModel, self).__init__(**kwargs)
         self.to_token = ToTokens(word_index)
@@ -40,6 +40,7 @@ class TaggerModel(tf.keras.Model):
         self.masking = tf.keras.layers.Masking()
         self.dropout_layer = tf.keras.layers.Dropout(dropout)
         self.n_additional_features = n_additional_features
+        self.use_crf = use_crf
         self.rnn_layers = []
         for _ in range(n_layers):
             rnn_layer = rnn(hidden_size, return_sequences=True)
@@ -47,7 +48,8 @@ class TaggerModel(tf.keras.Model):
                 rnn_layer = tf.keras.layers.Bidirectional(rnn_layer)
             self.rnn_layers.append(rnn_layer)
         self.project_layer = tf.keras.layers.Dense(len(word_index))
-        self.crf_layer = CRF(len(word_index))
+        if use_crf:
+            self.crf_layer = CRF(len(word_index))
 
         self._set_inputs(
             tf.keras.backend.placeholder((None, None), dtype='string'))
@@ -79,20 +81,36 @@ class TaggerModel(tf.keras.Model):
     @tf.function(experimental_relax_shapes=True)
     def call(self, inputs, training=False):
         x, lengths = self.compute(inputs, training=training)
-        tags_id = self.crf_layer(x, lengths=lengths, training=training)
+        if self.use_crf:
+            tags_id = self.crf_layer(x, lengths=lengths, training=training)
+        else:
+            tags_id = tf.argmax(x, -1)
+            tags_id = tf.cast(tags_id, tf.int32)
         tags_id = tags_id[:, 1:-1]
         return self.to_tags(tags_id)
 
     def train_step(self, data):
         x, y = data
         yseq = self.to_token(y)
-        transition_params = self.crf_layer.transition_params
+        if self.use_crf:
+            transition_params = self.crf_layer.transition_params
         with tf.GradientTape() as tape:
             logits, lengths = self.compute(x, training=True)
-            loss = crf_loss(inputs=logits,
-                            tag_indices=yseq,
-                            transition_params=transition_params,
-                            lengths=lengths)
+            if self.use_crf:
+                loss = crf_loss(inputs=logits,
+                                tag_indices=yseq,
+                                transition_params=transition_params,
+                                lengths=lengths)
+            else:
+                loss = tf.keras.losses.sparse_categorical_crossentropy(
+                    y_true=yseq,
+                    y_pred=logits,
+                    from_logits=True
+                )
+                mask = tf.sequence_mask(lengths)
+                loss = tf.boolean_mask(loss, mask)
+                loss = tf.reduce_sum(loss) / tf.cast(
+                    tf.shape(x)[0], tf.float32)
         gradients = tape.gradient(loss, self.trainable_variables)
 
         encoder_layers = len(self.encoder_layer.trainable_variables)
