@@ -104,18 +104,39 @@ class Tagger(TFNLUModel):
         def size_x(x):
             return tf.size(x)
 
-        dataset = tf.data.Dataset.from_generator(**_make_gen(x, y))
+        if y is None:
+            dataset = tf.data.Dataset.from_tensor_slices(tf.ragged.constant([
+                ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]']
+                for xx in x
+            ]))
+        else:
+            dataset = tf.data.Dataset.zip((
+                tf.data.Dataset.from_tensor_slices(tf.ragged.constant([
+                    ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]']
+                    for xx in x
+                ])),
+                tf.data.Dataset.from_tensor_slices(tf.ragged.constant([
+                    ['[CLS]'] + xx[:MAX_LENGTH] + ['[SEP]']
+                    for xx in y
+                ]))
+            ))
+        dataset = dataset.shuffle(1024, reshuffle_each_iteration=True)
+
         bucket_size = 5
         bucket_boundaries = list(range(
             MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
         dataset = dataset.apply(
             tf.data.experimental.bucket_by_sequence_length(
-                size_xy if y is not None else size_x,
+                size_x if y is None else size_xy,
                 bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
-                bucket_boundaries=bucket_boundaries
+                bucket_boundaries=bucket_boundaries,
+                no_padding=True
             )
         )
-        dataset = dataset.shuffle(20, reshuffle_each_iteration=True)
+        if y is None:
+            dataset = dataset.map(lambda x: x.to_tensor())
+        else:
+            dataset = dataset.map(lambda x, y: (x.to_tensor(), y.to_tensor()))
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
