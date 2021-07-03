@@ -32,7 +32,9 @@ def draw_dp(text, mat_rel_type, file='dp.html'):
             label_opts=opts.LabelOpts(
                 is_show=True, formatter="{c}"
             ),
-            linestyle_opts=opts.LineStyleOpts(width=0.5, curve=0.5, opacity=0.7),
+            linestyle_opts=opts.LineStyleOpts(
+                width=0.5, curve=0.5, opacity=0.7
+            ),
             edge_label=opts.LabelOpts(
                 is_show=True, position="middle", formatter="{c}",
                 font_size=8
@@ -45,3 +47,4 @@ def draw_dp(text, mat_rel_type, file='dp.html'):
         )
         .render(file)
     )
+    return c

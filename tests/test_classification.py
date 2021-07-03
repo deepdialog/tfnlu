@@ -34,4 +34,6 @@ class TestClassification(object):
             pickle.dump(model, fp)
         with open(path, 'rb') as fp:
             model = pickle.load(fp)
-        assert model.predict(x[:4]) == pred
+        pred2 = model.predict(x[:4])
+        assert pred2 == pred
+        print('pred', pred[0])
