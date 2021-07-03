@@ -20,7 +20,7 @@ class Tagger(TFNLUModel):
                  encoder_trainable=True,
                  hidden_size=400,  # hidden for rnn layers
                  dropout=0.0,
-                 n_layers=0,  # rnn layers
+                 n_layers=2,  # rnn layers
                  n_additional_features=0,
                  rnn=tf.keras.layers.LSTM,
                  bidirection=True,
