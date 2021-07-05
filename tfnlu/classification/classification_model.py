@@ -70,8 +70,9 @@ class ClassificationModel(tf.keras.Model):
         return x, lengths, tags_id
 
     def call(self, inputs, training=False):
-        _, lengths, tags_id = self.compute(inputs, training=training)
-        return self.to_tags(tags_id)
+        logits, _, tags_id = self.compute(inputs, training=training)
+        probs = tf.gather(tf.nn.softmax(logits), tags_id, batch_dims=1)
+        return self.to_tags(tags_id), probs
 
     def train_step(self, data):
         x, y = data

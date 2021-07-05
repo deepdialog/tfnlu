@@ -34,3 +34,8 @@ class TestTagger(object):
             pickle.dump(model, fp)
         with open(path, 'rb') as fp:
             model = pickle.load(fp)
+
+
+if __name__ == '__main__':
+    t = TestTagger()
+    t.test_tagger()

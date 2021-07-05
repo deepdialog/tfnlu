@@ -92,17 +92,11 @@ class Tagger(TFNLUModel):
                     'output_types': tf.string,
                     'output_shapes': tf.TensorShape([None, ])}
             return {
-                    'generator': _gen_xy,
-                    'output_types': (tf.string, tf.string),
-                    'output_shapes': (
-                        tf.TensorShape([None, ]),
-                        tf.TensorShape([None, ]))}
-
-        def size_xy(x, y):
-            return tf.size(x)
-
-        def size_x(x):
-            return tf.size(x)
+                'generator': _gen_xy,
+                'output_types': (tf.string, tf.string),
+                'output_shapes': (
+                    tf.TensorShape([None, ]),
+                    tf.TensorShape([None, ]))}
 
         if y is None:
             dataset = tf.data.Dataset.from_tensor_slices(tf.ragged.constant([
@@ -122,21 +116,32 @@ class Tagger(TFNLUModel):
             ))
         dataset = dataset.shuffle(1024, reshuffle_each_iteration=True)
 
-        bucket_size = 5
-        bucket_boundaries = list(range(
-            MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
-        dataset = dataset.apply(
-            tf.data.experimental.bucket_by_sequence_length(
-                size_x if y is None else size_xy,
-                bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
-                bucket_boundaries=bucket_boundaries,
-                no_padding=True
-            )
-        )
+        # REMOVE bucket_by_sequence_length because it's mentioned as deprecated in tf2.5
+
+        # def size_xy(x, y):
+        #     return tf.size(x)
+        # def size_x(x):
+        #     return tf.size(x)
+        # bucket_size = 5
+        # bucket_boundaries = list(range(
+        #     MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
+        # dataset = dataset.apply(
+        #     tf.data.experimental.bucket_by_sequence_length(
+        #         size_x if y is None else size_xy,
+        #         bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
+        #         bucket_boundaries=bucket_boundaries,
+        #         no_padding=True
+        #     )
+        # )
+
+        # import pdb; pdb.set_trace()
         if y is None:
-            dataset = dataset.map(lambda x: x.to_tensor())
+            dataset = dataset.map(lambda x: x)
         else:
-            dataset = dataset.map(lambda x, y: (x.to_tensor(), y.to_tensor()))
+            dataset = dataset.map(lambda x, y: (x, y))
+
+        # @TODO: if drop_remainder is False, may cause bug
+        dataset = dataset.padded_batch(batch_size, drop_remainder=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset

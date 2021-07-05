@@ -10,10 +10,7 @@ class UnicodeEncoder(tf.keras.Model):
         self.preprocess_layer = tf.keras.layers.Lambda(
             lambda x: tf.strings.substr(tf.strings.regex_replace(
                 tf.strings.regex_replace(x, r'\[CLS\]', '\a'), r'\[SEP\]', '\b'
-            ),
-                                        0,
-                                        1,
-                                        unit='UTF8_CHAR'))
+            ), 0, 1, unit='UTF8_CHAR'))
         self.encode_layer = tf.keras.layers.Lambda(lambda x: tf.clip_by_value(
             tf.squeeze(tf.strings.unicode_decode(x, 'UTF-8').to_tensor(), -1),
             0, vocab_size_max - 1))

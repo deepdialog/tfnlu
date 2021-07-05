@@ -102,30 +102,34 @@ class Parser(TFNLUModel):
             tf.TensorShape([None, ])
         )
 
-        bucket_size = 5
-        bucket_boundaries = list(range(
-            MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
-        bucket_batch_sizes = [batch_size] * (len(bucket_boundaries) + 1)
-        x_dataset, y0_dataset, y1_dataset = [
-            dataset.apply(
-                tf.data.experimental.bucket_by_sequence_length(
-                    size_func,
-                    bucket_batch_sizes=bucket_batch_sizes,
-                    bucket_boundaries=bucket_boundaries
-                )
-            )
-            for dataset, size_func in zip(
-                (x_dataset, y0_dataset, y1_dataset),
-                (
-                    lambda x: tf.size(x),
-                    lambda x: tf.shape(x)[0],
-                    lambda x: tf.size(x)
-                )
-            )
-        ]
+        # REMOVE bucket_by_sequence_length because it's mentioned as deprecated in tf2.5
+
+        # bucket_size = 5
+        # bucket_boundaries = list(range(
+        #     MAX_LENGTH // bucket_size, MAX_LENGTH, MAX_LENGTH // bucket_size))
+        # bucket_batch_sizes = [batch_size] * (len(bucket_boundaries) + 1)
+        # x_dataset, y0_dataset, y1_dataset = [
+        #     dataset.apply(
+        #         tf.data.experimental.bucket_by_sequence_length(
+        #             size_func,
+        #             bucket_batch_sizes=bucket_batch_sizes,
+        #             bucket_boundaries=bucket_boundaries
+        #         )
+        #     )
+        #     for dataset, size_func in zip(
+        #         (x_dataset, y0_dataset, y1_dataset),
+        #         (
+        #             lambda x: tf.size(x),
+        #             lambda x: tf.shape(x)[0],
+        #             lambda x: tf.size(x)
+        #         )
+        #     )
+        # ]
 
         dataset = tf.data.Dataset.zip((x_dataset, (y0_dataset, y1_dataset)))
-        dataset = dataset.shuffle(20, reshuffle_each_iteration=True)
+        dataset = dataset.shuffle(1024, reshuffle_each_iteration=True)
+        # @TODO: if drop_remainder is False, may cause bug
+        dataset = dataset.padded_batch(batch_size, drop_remainder=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         for xb, (y0b, y1b) in dataset.take(2):

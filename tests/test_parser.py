@@ -61,3 +61,8 @@ class TestParser(object):
         with open(path, 'rb') as fp:
             model = pickle.load(fp)
         assert model.predict(x) == ret
+
+
+if __name__ == '__main__':
+    t = TestParser()
+    t.test_parser()

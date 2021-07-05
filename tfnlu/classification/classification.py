@@ -65,27 +65,32 @@ class Classification(TFNLUModel):
                     'output_types': tf.string,
                     'output_shapes': tf.TensorShape([None, ])}
             return {
-                    'generator': _gen_xy,
-                    'output_types': (tf.string, tf.string),
-                    'output_shapes': (
-                        tf.TensorShape([None, ]),
-                        tf.TensorShape([]))}
-
-        def size_xy(x, y):
-            return tf.size(x)
-
-        def size_x(x):
-            return tf.size(x)
+                'generator': _gen_xy,
+                'output_types': (tf.string, tf.string),
+                'output_shapes': (
+                    tf.TensorShape([None, ]),
+                    tf.TensorShape([]))}
 
         dataset = tf.data.Dataset.from_generator(**_make_gen(x, y))
-        bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
-        dataset = dataset.apply(
-            tf.data.experimental.bucket_by_sequence_length(
-                size_xy if y is not None else size_x,
-                bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
-                bucket_boundaries=bucket_boundaries
-            )
-        )
+        dataset = dataset.shuffle(1024, reshuffle_each_iteration=True)
+
+        # REMOVE bucket_by_sequence_length because it's mentioned as deprecated in tf2.5
+
+        # def size_xy(x, y):
+        #     return tf.size(x)
+        # def size_x(x):
+        #     return tf.size(x)
+        # bucket_boundaries = list(range(MAX_LENGTH // 10, MAX_LENGTH, 50))
+        # dataset = dataset.apply(
+        #     tf.data.experimental.bucket_by_sequence_length(
+        #         size_xy if y is not None else size_x,
+        #         bucket_batch_sizes=[batch_size] * (len(bucket_boundaries) + 1),
+        #         bucket_boundaries=bucket_boundaries
+        #     )
+        # )
+
+        # @TODO: if drop_remainder is False, may cause bug
+        dataset = dataset.padded_batch(batch_size, drop_remainder=True)
         dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
         return dataset
@@ -101,6 +106,7 @@ class Classification(TFNLUModel):
             optimizer=None,
             optimizer_encoder=None):
         data = self.check_data(x, y, batch_size)
+
         if not self.model:
             logger.info('build model')
             word_index, index_word = get_tags(y)
@@ -131,13 +137,17 @@ class Classification(TFNLUModel):
         ]), verbose=0)
 
         logger.info('start training')
-        self.model.fit(data, epochs=epochs)
+        self.model.fit(data, epochs=epochs, shuffle=False)
         logger.info('training done')
 
-    def predict(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1):
+    def predict_proba(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1):
+        return self.predict(x, batch_size, verbose, True)
+
+    def predict(self, x, batch_size=DEFAULT_BATCH_SIZE, verbose=1, return_probs=False):
         assert self.model is not None, 'model not fit or load'
 
         pred = []
+        probs = []
         total_batch = int((len(x) - 1) / batch_size) + 1
         pbar = range(total_batch)
         if verbose:
@@ -149,7 +159,10 @@ class Classification(TFNLUModel):
                 for xx in x_batch
             ]
             x_batch = tf.ragged.constant(x_batch).to_tensor()
-            p = self.model(x_batch)
+            p, prob = self.model(x_batch)
             pred += [x.decode('UTF-8') for x in p.numpy().tolist()]
+            probs += prob.numpy().tolist()
 
+        if return_probs:
+            return pred, probs
         return pred
