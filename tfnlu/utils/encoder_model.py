@@ -38,7 +38,7 @@ class UnicodeEncoder(tf.keras.Model):
 
 def get_encoder(encoder_path, encoder_trainable):
     if encoder_path is not None:
-        if not encoder_path.startswith('gs://'):
+        if not encoder_path.startswith('gs://') or not encoder_path.startswith('http://'):
             if not os.path.exists(encoder_path):
                 raise RuntimeError('No encoder_path found')
         return hub.KerasLayer(encoder_path,
